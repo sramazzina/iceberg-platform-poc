@@ -1,11 +1,18 @@
 ## Subagent model policy
 
-- **Code exploration / fact-finding subagents** (reading the Hop sources, enumerating
+- **Code exploration / fact-finding subagents** (reading the sources, enumerating
   symbols, reporting usages, verifying claims) MUST be launched with `model: "sonnet"`.
 - **Synthesis, architectural judgement, writing of deliverables** stays with the main
   (default) model; do not delegate these to cheaper models.
-- Explorer subagents must use Serena (`initial_instructions` → `activate_project("hop")`)
-  and report file paths and symbol names for every claim.
+- Explorer subagents must report file paths (and symbol names, where they apply) for
+  every claim.
+
+## Git
+
+- Never add a `Co-Authored-By` line (or any other Claude co-author trailer) to a git commit
+  message. This rule applies to every commit, including commits made by subagents.
+- Never add a "Generated with Claude Code" line (or any other Claude attribution) to a pull
+  request description, a pull request comment or an issue.
 
 ## Writing style
 
