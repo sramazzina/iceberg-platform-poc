@@ -49,7 +49,8 @@ they get no credentials. Source:
    ```
    Set `AWS_REGION` explicitly to the region of the VM. CloudShell sets `AWS_REGION` to the console region, which can be a different region.
 5. Run the script: `aws/setup.sh`
-6. Copy the four lines printed at the end into `.env` on the VM.
+6. On the VM, copy `.env.example` to `.env`: `cp .env.example .env`.
+7. Copy the four lines printed at the end into `.env`.
 
 The script is idempotent. Run it again after a change: it keeps the bucket, the role and the
 external ID.
@@ -58,7 +59,7 @@ external ID.
 
 Run on the VM.
 
-The AWS CLI on the VM must use the instance profile. If your shell sets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` or `AWS_PROFILE`, the CLI uses these values instead. Unset them before you run the check:
+The AWS CLI on the VM must use the instance profile. If your shell sets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` or `AWS_PROFILE`, the CLI uses these values instead. A `[default]` profile with keys in `~/.aws/credentials` also has priority over the instance profile. Remove it, or move it to a named profile. Unset the variables before you run the check:
 
 ```bash
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
@@ -67,6 +68,7 @@ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
 Then run the check:
 
 ```bash
+export S3_BUCKET=<bucket name from .env>
 TOKEN=$(curl -s -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')
 curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/
 aws s3 ls "s3://$S3_BUCKET/"
