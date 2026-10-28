@@ -13,7 +13,7 @@
 | Plan | `docs/superpowers/plans/2026-10-28-stage1-and-phase1.md` — Stage 1 (Tasks 1-6) and Phase 1 (Tasks 7-9) |
 | GitHub milestone | "S1 — Iceberg catalog lab" |
 | GitHub issues | #1-#9, one per plan task, all open, no checklist item done |
-| Code | None yet. `main` holds only docs, `CLAUDE.md` and `.gitignore` |
+| Code | None yet. `main` holds docs, `CLAUDE.md`, `.gitignore`, an initial `README.md` (completed in Phase 6) and `LICENSE` (Apache 2.0) |
 | Next step | Task 1, on a new branch `stage1-aws-scripts` |
 
 ## Decisions already taken with the user (do not ask again)
