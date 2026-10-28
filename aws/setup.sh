@@ -19,7 +19,7 @@ VM_ROLE_ARN=$(aws iam get-role --role-name "$VM_ROLE_NAME" --query Role.Arn --ou
 POLARIS_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${POLARIS_ROLE_NAME}"
 
 echo "==> Bucket s3://$S3_BUCKET"
-if aws s3api head-bucket --bucket "$S3_BUCKET" 2>/dev/null; then
+if aws s3api head-bucket --bucket "$S3_BUCKET" >/dev/null 2>&1; then
   echo "    exists"
 elif [[ $AWS_REGION == us-east-1 ]]; then
   aws s3api create-bucket --bucket "$S3_BUCKET" >/dev/null

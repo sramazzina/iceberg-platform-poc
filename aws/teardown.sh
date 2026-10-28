@@ -10,14 +10,17 @@ source "$SCRIPT_DIR/lib.sh"
 : "${AWS_REGION:?set AWS_REGION}" "${S3_BUCKET:?set S3_BUCKET}" "${INSTANCE_ID:?set INSTANCE_ID}"
 export AWS_DEFAULT_REGION=$AWS_REGION
 
-VM_ROLE_NAME=$(vm_role_name "$INSTANCE_ID")
-
-echo "==> Inline policy $VM_POLICY_NAME on VM role $VM_ROLE_NAME"
-if aws iam get-role-policy --role-name "$VM_ROLE_NAME" --policy-name "$VM_POLICY_NAME" >/dev/null 2>&1; then
-  aws iam delete-role-policy --role-name "$VM_ROLE_NAME" --policy-name "$VM_POLICY_NAME"
-  echo "    deleted"
+if VM_ROLE_NAME=$(vm_role_name "$INSTANCE_ID"); then
+  echo "==> Inline policy $VM_POLICY_NAME on VM role $VM_ROLE_NAME"
+  if aws iam get-role-policy --role-name "$VM_ROLE_NAME" --policy-name "$VM_POLICY_NAME" >/dev/null 2>&1; then
+    aws iam delete-role-policy --role-name "$VM_ROLE_NAME" --policy-name "$VM_POLICY_NAME"
+    echo "    deleted"
+  else
+    echo "    not present"
+  fi
 else
-  echo "    not present"
+  echo "==> Inline policy $VM_POLICY_NAME on the VM role"
+  echo "    VM role not found. If the role still exists, remove the inline policy $VM_POLICY_NAME by hand."
 fi
 
 echo "==> Role $POLARIS_ROLE_NAME"
@@ -32,7 +35,7 @@ else
 fi
 
 echo "==> Bucket s3://$S3_BUCKET"
-if aws s3api head-bucket --bucket "$S3_BUCKET" 2>/dev/null; then
+if aws s3api head-bucket --bucket "$S3_BUCKET" >/dev/null 2>&1; then
   read -r -p "Type the bucket name to delete s3://$S3_BUCKET and all its objects: " answer || answer=
   if [[ $answer == "$S3_BUCKET" ]]; then
     aws s3 rb "s3://$S3_BUCKET" --force
@@ -47,7 +50,7 @@ fi
 cat <<EOF
 
 Not changed by this script, because setup.sh did not create them:
-- the VM role $VM_ROLE_NAME and its instance profile;
+- the VM role of $INSTANCE_ID and its instance profile;
 - the IMDSv2 options of $INSTANCE_ID (hop limit 2). To restore hop limit 1:
   aws ec2 modify-instance-metadata-options --instance-id $INSTANCE_ID --http-put-response-hop-limit 1
 EOF
