@@ -11,6 +11,8 @@
 
 - Never add a `Co-Authored-By` line (or any other Claude co-author trailer) to a git commit
   message. This rule applies to every commit, including commits made by subagents.
+- Never add a "Generated with Claude Code" line (or any other Claude attribution) to a pull
+  request description, a pull request comment or an issue.
 
 ## Writing style
 
