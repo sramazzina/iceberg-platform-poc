@@ -4,6 +4,8 @@
 # Postgres runs this script once, when the data volume is empty.
 set -euo pipefail
 
+: "${POLARIS_DB_PASSWORD:?}" "${NESSIE_DB_PASSWORD:?}"
+
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
   -v polaris_pw="$POLARIS_DB_PASSWORD" -v nessie_pw="$NESSIE_DB_PASSWORD" <<'SQL'
 CREATE USER polaris WITH PASSWORD :'polaris_pw';
