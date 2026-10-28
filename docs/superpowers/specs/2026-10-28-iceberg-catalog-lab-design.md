@@ -21,15 +21,16 @@ not production.
 
 ## 2. Execution model
 
-The work happens in two stages.
+This spec, the plan and the GitHub issues were written on a developer
+workstation. All implementation happens on the EC2 VM: the user clones the
+repository there and runs Claude Code on the VM.
 
-1. **Stage 1 — developer workstation (WSL).** Create the git repository and the
-   public GitHub repository `sramazzina/iceberg-platform-poc`. Write this spec,
-   the plan, `VERSIONS.md`, and the `aws/` scripts. The user runs `aws/setup.sh`
-   with administrative AWS credentials (for example from AWS CloudShell).
-2. **Stage 2 — the EC2 VM.** The user clones the repository on the VM and runs
-   Claude Code there. Claude implements phases 1-6 and runs every acceptance
-   test on the VM against real S3. A phase closes only when its acceptance tests
+1. **Stage 1 — AWS scripts.** Claude writes `VERSIONS.md` and the `aws/`
+   scripts and tests them against a stub AWS CLI. After the merge, the user runs
+   `aws/setup.sh` with administrative AWS credentials in AWS CloudShell, never
+   on the VM.
+2. **Phases 1-6.** Claude implements each phase and runs every acceptance test
+   on the VM against real S3. A phase closes only when its acceptance tests
    pass.
 
 Facts about the environment, confirmed by the user:

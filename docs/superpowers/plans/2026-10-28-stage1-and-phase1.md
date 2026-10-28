@@ -18,8 +18,10 @@
 - Commit messages: Conventional Commits style, **no `Co-Authored-By` line**.
 - Do not push. The controller pushes batches and opens the PR.
 - Never write a real account ID, bucket name, ARN, external ID, password or secret into a tracked file. Tests use the fake values `123456789012`, `test-bucket`, `lab-vm-role`, `test-external-id`.
-- Stage 1 tasks (1-6) run on the developer workstation. They need `bash`, `jq`, `make`, `git`. They do not need AWS or Docker.
-- Phase 1 tasks (7-9) run on the EC2 VM. They need Docker with the Compose plugin and a `.env` filled from `aws/setup.sh` output.
+- All tasks run on the EC2 VM, in a clone of the repository.
+- Stage 1 tasks (1-6) need `bash`, `jq`, `make`, `git`. They do not call AWS: the AWS scripts are tested against a stub AWS CLI.
+- Phase 1 tasks (7-9) also need Docker with the Compose plugin and a `.env` filled from `aws/setup.sh` output.
+- Never run `aws/setup.sh` or `aws/teardown.sh` on the VM. The user runs them in AWS CloudShell with administrative credentials.
 
 ## File map
 
@@ -1126,15 +1128,15 @@ git commit -m "docs: add pinned versions with sources"
 
 ---
 
-## Stage 1 → Stage 2 hand-over (user actions, not a subagent task)
+## Gate between Stage 1 and Phase 1 (user actions, not a subagent task)
 
 After the Stage 1 PR is merged:
 
-1. The user runs `aws/setup.sh` in CloudShell (see `aws/README-aws.md`).
-2. On the VM: `git clone git@github.com:sramazzina/iceberg-platform-poc.git`, `cd iceberg-platform-poc`.
+1. The user runs `aws/setup.sh` in AWS CloudShell (see `aws/README-aws.md`).
+2. On the VM: `git checkout main && git pull`.
 3. On the VM: `cp .env.example .env`, then fill `S3_BUCKET`, `AWS_REGION`, `POLARIS_ROLE_ARN`, `POLARIS_EXTERNAL_ID` from the `setup.sh` output, replace every `change-me`, and set `LAB_UID` to the output of `id -u`.
 4. On the VM: run the checks in `aws/README-aws.md` section "Check from the VM".
-5. On the VM: start Claude Code in the repository and continue with Task 7.
+5. Continue with Task 7 on a new branch for the Phase 1 PR.
 
 ---
 
