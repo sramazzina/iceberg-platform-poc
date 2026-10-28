@@ -18,5 +18,32 @@ services:
       timeout: 5s
       retries: 30
 
+  spark:
+    build:
+      context: ./spark
+      args:
+        SPARK_BASE_IMAGE: ${SPARK_BASE_IMAGE}
+        ICEBERG_VERSION: ${ICEBERG_VERSION}
+        ICEBERG_SPARK_RUNTIME_ARTIFACT: ${ICEBERG_SPARK_RUNTIME_ARTIFACT}
+        ICEBERG_SPARK_RUNTIME_SHA1: ${ICEBERG_SPARK_RUNTIME_SHA1}
+        ICEBERG_AWS_BUNDLE_SHA1: ${ICEBERG_AWS_BUNDLE_SHA1}
+        AWSCLI_VERSION: ${AWSCLI_VERSION}
+        LAB_UID: ${LAB_UID}
+    image: iceberg-lab-spark:${ICEBERG_VERSION}
+    environment:
+      S3_BUCKET: ${S3_BUCKET}
+      AWS_REGION: ${AWS_REGION}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_PATH_STYLE_ACCESS: ${S3_PATH_STYLE_ACCESS:-false}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN}
+    ports:
+      - "127.0.0.1:8888:8888"
+      - "127.0.0.1:4040:4040"
+    volumes:
+      - ./scenarios:/workspace/scenarios
+      - ./tests:/workspace/tests:ro
+
 volumes:
   pgdata:
