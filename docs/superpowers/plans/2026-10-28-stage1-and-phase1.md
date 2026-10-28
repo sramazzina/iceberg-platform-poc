@@ -837,7 +837,7 @@ tests/check-no-secrets.sh; echo "exit=$?"
 rm leak.txt
 tests/check-no-secrets.sh
 ```
-Expected: first run prints `leak.txt:1:key=AKIAXXXXXXXXXXXXXXXX` and `exit=1`; second run prints `no secrets found`. (The fake key is built at run time, so this plan file does not trip the check.)
+Expected: first run prints `leak.txt:1:key=AKIA` followed by 16 `X` characters and `exit=1`; second run prints `no secrets found`. (The fake key is built at run time, so this plan file does not trip the check.)
 
 - [ ] **Step 3: Add the check to `make lint`**
 
