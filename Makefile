@@ -1,4 +1,4 @@
-.PHONY: lint test-aws up down reset logs smoke-test
+.PHONY: lint test-aws up down reset logs sql-nessie smoke-test
 
 lint:
 	tests/lint.sh
@@ -21,7 +21,11 @@ reset:
 logs:
 	docker compose logs -f --tail=200
 
+sql-nessie:
+	docker compose exec spark spark-sql --conf spark.sql.defaultCatalog=nessie
+
 smoke-test:
 	tests/postgres-init.sh
 	tests/s3-access.sh
 	tests/nessie-service.sh
+	tests/catalog-smoke.sh nessie
