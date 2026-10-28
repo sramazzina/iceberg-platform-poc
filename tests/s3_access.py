@@ -30,6 +30,25 @@ def check(ok, message):
     failures += 0 if ok else 1
 
 
+def describe(error):
+    """The Java exception class and message, or the Python error."""
+    java = getattr(error, "java_exception", None)
+    return java.toString() if java is not None else repr(error)
+
+
+def access_denied(error):
+    """True when the Java cause chain holds the S3 error AccessDenied (HTTP 403)."""
+    service_error = jvm.java.lang.Class.forName(
+        "software.amazon.awssdk.awscore.exception.AwsServiceException")
+    cause = getattr(error, "java_exception", None)
+    while cause is not None:
+        if service_error.isInstance(cause):
+            return (cause.statusCode() == 403
+                    and cause.awsErrorDetails().errorCode() == "AccessDenied")
+        cause = cause.getCause()
+    return False
+
+
 def write(path, text):
     out = io.newOutputFile(path).createOrOverwrite()
     out.write(bytearray(text.encode()))
@@ -46,17 +65,27 @@ def read(path):
 
 token = uuid.uuid4().hex
 allowed = f"s3://{bucket}/rest/_smoke/{token}.txt"
-write(allowed, token)
-check(read(allowed) == token, f"write and read back {allowed}")
-io.deleteFile(allowed)
-check(not io.newInputFile(allowed).exists(), f"delete {allowed}")
+try:
+    write(allowed, token)
+    check(read(allowed) == token, f"write and read back {allowed}")
+    io.deleteFile(allowed)
+    check(not io.newInputFile(allowed).exists(), f"delete {allowed}")
+except Exception as error:
+    check(False, f"write, read and delete {allowed}: {describe(error)}")
+    try:
+        io.deleteFile(allowed)  # best effort: do not leave the test object behind
+    except Exception:
+        pass
 
 denied = f"s3://{bucket}/polaris/_smoke/{token}.txt"
 try:
     write(denied, token)
+except Exception as error:
+    ok = access_denied(error)
+    check(ok, f"write to {denied} is denied" + ("" if ok else f" (other error: {describe(error)})"))
+else:
     check(False, f"write to {denied} is denied (it succeeded)")
-except Exception as error:  # Py4JJavaError wraps the AWS SDK exception
-    check("403" in str(error) or "AccessDenied" in str(error), f"write to {denied} is denied")
+    io.deleteFile(denied)  # remove the object that the VM role must not be able to write
 
 spark.stop()
 sys.exit(1 if failures else 0)
