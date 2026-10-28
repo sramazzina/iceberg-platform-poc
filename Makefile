@@ -24,3 +24,4 @@ logs:
 smoke-test:
 	tests/postgres-init.sh
 	tests/s3-access.sh
+	tests/nessie-service.sh
