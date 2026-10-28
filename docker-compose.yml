@@ -1,0 +1,21 @@
+name: iceberg-lab
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POLARIS_DB_PASSWORD: ${POLARIS_DB_PASSWORD}
+      NESSIE_DB_PASSWORD: ${NESSIE_DB_PASSWORD}
+    volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/<major>/docker.
+      - pgdata:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pgdata:
