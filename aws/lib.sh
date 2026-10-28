@@ -16,6 +16,10 @@ render_template() {
       echo "render_template: variable $name is not set (in $1)" >&2
       return 1
     fi
+    if [[ ${!name} == *'${'* ]]; then
+      echo "render_template: value of $name contains '\${' (in $1)" >&2
+      return 1
+    fi
     content=${content//"\${$name}"/"${!name}"}
   done
   printf '%s\n' "$content"
@@ -24,13 +28,19 @@ render_template() {
 # vm_role_name INSTANCE_ID
 # Prints the name of the IAM role in the instance profile of the instance.
 vm_role_name() {
-  local profile_arn
+  local profile_arn profile_name role_name
   profile_arn=$(aws ec2 describe-instances --instance-ids "$1" \
-    --query 'Reservations[0].Instances[0].IamInstanceProfile.Arn' --output text)
+    --query 'Reservations[0].Instances[0].IamInstanceProfile.Arn' --output text) || return 1
   if [[ -z $profile_arn || $profile_arn == None ]]; then
     echo "Instance $1 has no instance profile. Attach one, then run again." >&2
     return 1
   fi
-  aws iam get-instance-profile --instance-profile-name "${profile_arn##*/}" \
-    --query 'InstanceProfile.Roles[0].RoleName' --output text
+  profile_name=${profile_arn##*/}
+  role_name=$(aws iam get-instance-profile --instance-profile-name "$profile_name" \
+    --query 'InstanceProfile.Roles[0].RoleName' --output text) || return 1
+  if [[ -z $role_name || $role_name == None ]]; then
+    echo "Instance profile $profile_name has no role. Add one, then run again." >&2
+    return 1
+  fi
+  printf '%s\n' "$role_name"
 }
