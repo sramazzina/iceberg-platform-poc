@@ -11,10 +11,12 @@
 | Requirements | `docs/req/prompt-agente-lab-iceberg-polaris-nessie.md` (Italian) |
 | Design spec | `docs/superpowers/specs/2026-10-28-iceberg-catalog-lab-design.md` — approved |
 | Plan | `docs/superpowers/plans/2026-10-28-stage1-and-phase1.md` — Stage 1 (Tasks 1-6) and Phase 1 (Tasks 7-9) |
+| Plan (Phase 3) | `docs/superpowers/plans/2026-10-28-phase3-nessie.md` — Tasks 10-12 |
 | GitHub milestone | "S1 — Iceberg catalog lab" |
-| GitHub issues | #1-#9, one per plan task |
+| GitHub issues | #1-#9 and #13-#15, one per plan task |
 | Stage 1 (AWS scripts) | Merged (PR #10) |
-| Phase 1 (Postgres, Spark image, S3 acceptance test) | Done on branch `phase1-spark-postgres`. PR pending |
+| Phase 1 (Postgres, Spark image, S3 acceptance test) | Merged (PR #11) |
+| Phase 3 (Nessie) | Done on branch `phase3-nessie`. PR pending. Phase 2 (Polaris) comes later (`NOTES.md` D9) |
 | Next step | Write the Phase 2 plan (Polaris) |
 
 ## Decisions already taken with the user (do not ask again)

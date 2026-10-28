@@ -9,13 +9,16 @@ The lab is a test environment, not a production environment.
 
 ## Status
 
-Work in progress. Stage 1 (AWS scripts) is done. Phase 1 adds Postgres and the Spark image.
+Work in progress. Stage 1 (AWS scripts) and Phase 1 (Postgres, Spark image) are done.
+Phase 3 adds Nessie, before Phase 2 (Polaris), see `NOTES.md` D9.
 
-Quick check of Phase 1 on the VM:
+Quick check on the VM:
 
 1. Run `make up`.
 2. Run `make smoke-test`.
 3. Run `make down`.
+
+Open a Spark SQL shell on the Nessie catalog with `make sql-nessie`.
 
 | Document | Content |
 |---|---|
