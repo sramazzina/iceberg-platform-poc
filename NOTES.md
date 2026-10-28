@@ -36,12 +36,19 @@ Each entry: what the requirement says, what the lab does, and why.
 
 ### D6 — Python 3.10 in the Spark image
 - The official `apache/spark:4.1.3` images are based on Ubuntu 22.04, so Python is 3.10.
-  Python 3.10 reaches end of life in October 2026. pandas and pyarrow are pinned to the
+  Python 3.10 reached end of life in October 2026. pandas and pyarrow are pinned to the
   last releases that support Python 3.10 (2.3.3 and 25.0.1). Accepted for a test lab.
 
 ### D7 — Iceberg client 1.11.0, not the latest 1.12.0
 - Polaris 1.8.0 and Nessie 0.109.0 are built against Iceberg 1.11.0. The lab uses the same
   client version, so that compatibility is not a variable in the comparison.
+
+### D8 — `teardown.sh` keeps the IMDS hop limit
+- Requirement (section 6.5): `teardown.sh` removes everything that `setup.sh` created.
+- Lab: `setup.sh` sets the hop limit of the existing VM to 2. `teardown.sh` does not set it
+  back. It prints the command that restores hop limit 1.
+- Why: `setup.sh` changes a setting of a VM that it did not create. The previous value is
+  not recorded, so the script cannot restore it safely.
 
 ## Open investigations
 

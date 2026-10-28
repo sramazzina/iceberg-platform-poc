@@ -27,7 +27,7 @@ Do not run them on the lab VM: the VM role cannot create IAM roles.
 | Resource | Detail |
 |---|---|
 | S3 bucket `${S3_BUCKET}` | Block Public Access on, default encryption SSE-S3 |
-| Inline policy `iceberg-lab-vm` on the VM role | S3 read/write on `nessie/` and `rest/`, list on `polaris/`, `sts:AssumeRole` on `polaris-s3-access` |
+| Inline policy `iceberg-lab-vm` on the VM role | S3 read/write on `nessie/` and `rest/`, list on the bucket root and `polaris/`, `sts:AssumeRole` on `polaris-s3-access` |
 | IAM role `polaris-s3-access` | Trusted by the VM role with an external ID. S3 read/write on `polaris/` only |
 | VM metadata options | IMDSv2 required, `HttpPutResponseHopLimit=2` |
 
@@ -74,11 +74,12 @@ curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta
 aws s3 ls "s3://$S3_BUCKET/"
 ```
 
-The second command prints the VM role name. The third command succeeds (the bucket is empty at first).
+The `curl .../security-credentials/` command prints the VM role name. The `aws s3 ls` command
+succeeds (the bucket is empty at first).
 
 ## Run `teardown.sh`
 
-1. Stop the lab on the VM: `make down`.
+1. Stop the lab on the VM: `make down` (the target is added in Phase 1).
 2. In CloudShell, set `AWS_REGION`, `S3_BUCKET`, `INSTANCE_ID` as for `setup.sh`.
 3. Run the script: `aws/teardown.sh`
 4. Type the bucket name when the script asks for it. Any other answer keeps the bucket.
