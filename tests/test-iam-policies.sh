@@ -21,11 +21,9 @@ else
 fi
 out=$(S3_BUCKET='a&b\c/d'; render_template <(printf '%s' 'x=${S3_BUCKET}'))
 assert_eq "$out" 'x=a&b\c/d' "keeps & \ and / literally"
-if timeout 5 bash -c 'source "$1"; S3_BUCKET="\${S3_BUCKET}"; render_template <(printf "%s" "\${S3_BUCKET}")' _ "$ROOT/aws/lib.sh" >/dev/null 2>&1; then
-  fail "fails when a value contains a placeholder"
-else
-  pass "fails when a value contains a placeholder"
-fi
+rc=0
+timeout 5 bash -c 'source "$1"; S3_BUCKET="\${S3_BUCKET}"; render_template <(printf "%s" "\${S3_BUCKET}")' _ "$ROOT/aws/lib.sh" >/dev/null 2>&1 || rc=$?
+assert_eq "$rc" 1 "fails when a value contains a placeholder"
 
 echo "vm-role-policy.json"
 vm=$(render_template "$ROOT/aws/iam/vm-role-policy.json")
