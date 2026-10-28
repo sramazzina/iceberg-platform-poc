@@ -28,8 +28,9 @@ services:
         ICEBERG_SPARK_RUNTIME_SHA1: ${ICEBERG_SPARK_RUNTIME_SHA1}
         ICEBERG_AWS_BUNDLE_SHA1: ${ICEBERG_AWS_BUNDLE_SHA1}
         AWSCLI_VERSION: ${AWSCLI_VERSION}
-        LAB_UID: ${LAB_UID}
+        LAB_UID: ${LAB_UID:-1000}
     image: iceberg-lab-spark:${ICEBERG_VERSION}
+    init: true
     environment:
       S3_BUCKET: ${S3_BUCKET}
       AWS_REGION: ${AWS_REGION}
@@ -44,6 +45,11 @@ services:
     volumes:
       - ./scenarios:/workspace/scenarios
       - ./tests:/workspace/tests:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8888/api >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
 volumes:
   pgdata:
