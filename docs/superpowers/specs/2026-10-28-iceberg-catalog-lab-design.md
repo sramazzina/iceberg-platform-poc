@@ -1,0 +1,275 @@
+# Iceberg catalog lab (Polaris vs Nessie) — design
+
+- Date: 2026-10-28
+- Source requirements: `docs/req/prompt-agente-lab-iceberg-polaris-nessie.md` (Italian)
+- Status: approved in brainstorming session
+
+## 1. Goal
+
+Build a reproducible Docker Compose lab on one Amazon EC2 VM. One Spark session
+sees two Iceberg REST catalogs, Apache Polaris and Project Nessie, plus an
+optional `apache/iceberg-rest-fixture` baseline. Data and metadata files live
+on a real AWS S3 bucket. The lab must switch to an on-premise S3-compatible
+store (MinIO, RustFS) by editing `.env` only. The lab is a test environment,
+not production.
+
+| Spark catalog | Service | S3 prefix |
+|---|---|---|
+| `polaris` | Apache Polaris | `s3://${S3_BUCKET}/polaris/` |
+| `nessie` | Project Nessie (Iceberg REST endpoint) | `s3://${S3_BUCKET}/nessie/` |
+| `rest` (Compose profile `baseline`) | `apache/iceberg-rest-fixture` | `s3://${S3_BUCKET}/rest/` |
+
+## 2. Execution model
+
+The work happens in two stages.
+
+1. **Stage 1 — developer workstation (WSL).** Create the git repository and the
+   public GitHub repository `sramazzina/iceberg-platform-poc`. Write this spec,
+   the plan, `VERSIONS.md`, and the `aws/` scripts. The user runs `aws/setup.sh`
+   with administrative AWS credentials (for example from AWS CloudShell).
+2. **Stage 2 — the EC2 VM.** The user clones the repository on the VM and runs
+   Claude Code there. Claude implements phases 1-6 and runs every acceptance
+   test on the VM against real S3. A phase closes only when its acceptance tests
+   pass.
+
+Facts about the environment, confirmed by the user:
+
+- The EC2 VM already exists. It already has an IAM role (instance profile).
+- Docker, the Compose plugin, the AWS CLI and Claude Code are installed on the VM.
+- The user reaches the VM with SSH.
+- On the VM, Claude has only the permissions of the VM role. Claude never
+  creates AWS resources itself (requirement 6).
+
+## 3. Repository
+
+- Repository root = `iceberg-platform-poc` (the requirements name the root
+  `iceberg-catalog-lab/`; the difference goes into `NOTES.md`).
+- The repository is **public**. No account-specific value enters git: no
+  account ID, ARN, bucket name, `externalId`, password or client secret.
+  IAM documents in `aws/iam/` hold placeholders (`${ACCOUNT_ID}`,
+  `${S3_BUCKET}`, `${VM_ROLE_NAME}`, `${POLARIS_EXTERNAL_ID}`) that
+  `setup.sh` renders at run time.
+- `.gitignore` excludes `.env` and `secrets/`.
+- All repository content is in English, notebooks included.
+
+Layout:
+
+```text
+.
+├── README.md  VERSIONS.md  NOTES.md  EVALUATION.md
+├── .env.example  .gitignore  docker-compose.yml  Makefile
+├── aws/
+│   ├── iam/vm-role-policy.json
+│   ├── iam/polaris-role-policy.json
+│   ├── iam/polaris-role-trust.json
+│   ├── setup.sh  teardown.sh  README-aws.md
+├── postgres/init/        # creates databases polaris and nessie
+├── polaris/setup/        # idempotent bootstrap script
+├── nessie/               # application.properties, only if env vars are not enough
+├── spark/
+│   ├── Dockerfile  entrypoint.sh
+│   └── conf/spark-defaults.conf   # template, rendered at container start
+├── scenarios/            # 11 notebooks + lab.py helper
+├── tests/                # smoke tests
+└── secrets/              # git-ignored, written by polaris-setup
+```
+
+## 4. AWS resources (`aws/`)
+
+### 4.1 Parameters
+
+`AWS_REGION`, `S3_BUCKET`, `INSTANCE_ID`, `VM_ROLE_NAME` (the existing VM
+role), `POLARIS_EXTERNAL_ID` (generated when absent and printed, the user
+copies it into `.env`).
+
+### 4.2 `setup.sh` (idempotent)
+
+1. Create the bucket. Enable Block Public Access (all four settings). Enable
+   default encryption SSE-S3.
+2. Put the inline policy `iceberg-lab-vm` on the **existing** VM role:
+   S3 read/write/list on `nessie/` and `rest/`, and `sts:AssumeRole` on
+   `polaris-s3-access`. Do not touch other policies or the instance profile
+   association.
+3. Create the role `polaris-s3-access`. Trust policy: the VM role may call
+   `sts:AssumeRole` when `sts:ExternalId` equals `POLARIS_EXTERNAL_ID`.
+   Inline policy: S3 read/write/list on `polaris/` only.
+4. Set the VM metadata options: `HttpTokens=required`,
+   `HttpPutResponseHopLimit=2`.
+
+Each step checks the current state first and skips or updates.
+
+### 4.3 `teardown.sh`
+
+1. Delete the inline policy `iceberg-lab-vm` from the VM role.
+2. Delete the role `polaris-s3-access` and its inline policy.
+3. Ask for confirmation, then empty and delete the bucket (all object versions).
+4. Print a reminder: the VM role and the hop limit stay as they are, because
+   `setup.sh` did not create them.
+
+### 4.4 Deviations from requirement 6.4
+
+`setup.sh` does not create the VM role or the instance profile, because they
+already exist. It adds an inline policy to the existing role. This goes into
+`NOTES.md`.
+
+### 4.5 `README-aws.md`
+
+VM sizing (minimum 4 vCPU, 16 GB RAM), recommended OS, installation of Docker,
+the Compose plugin and the AWS CLI, how to run `setup.sh`/`teardown.sh`, cost
+notes.
+
+## 5. Services
+
+| Service | Image | Role |
+|---|---|---|
+| `postgres` | `postgres:<pinned>` | One instance. Init script creates databases `polaris` and `nessie`, each with its own user. Persistent volume. Not published on the host. |
+| `polaris-bootstrap` (only if required) | `apache/polaris-admin-tool:<pinned>` | One-shot realm bootstrap for `relational-jdbc`. Idempotent. Added only if the Polaris docs require it; the deviation goes into `NOTES.md`. |
+| `polaris` | `apache/polaris:<pinned>` | Iceberg REST catalog, RBAC, credential vending. Persistence `relational-jdbc`. Root credentials from `.env`. |
+| `polaris-setup` | light image with `curl` and `jq` (pinned) | One-shot, idempotent. See 5.1. |
+| `nessie` | `ghcr.io/projectnessie/nessie:<pinned>` | JDBC version store on database `nessie`. Iceberg REST at `/iceberg`. Warehouse `s3://${S3_BUCKET}/nessie/`. S3 access server-side with the AWS default credential chain (IMDS). No authentication. |
+| `spark` | built from `spark/Dockerfile` | See 5.2. |
+| `rest-fixture` (profile `baseline`) | `apache/iceberg-rest-fixture:<pinned>` | Warehouse `s3://${S3_BUCKET}/rest/`. JDBC catalog on a SQLite **file** in a volume, so the restart test passes. |
+
+Every version is pinned in `.env`. The tag `latest` is never used.
+
+### 5.1 `polaris-setup`
+
+1. Get a token as `root`.
+2. Create when missing (HTTP 409 on create counts as "already present"):
+   - catalog `lab_catalog`: `storageConfigInfo` type S3, `roleArn` of
+     `polaris-s3-access`, `externalId`, allowed location and default base
+     location `s3://${S3_BUCKET}/polaris/`, region, and the S3 endpoint /
+     path-style options when the Polaris version supports them;
+   - principal `spark_user`;
+   - principal role `spark_role`, granted to `spark_user`;
+   - catalog role `lab_admin` on `lab_catalog` with the privileges Spark needs
+     (`CATALOG_MANAGE_CONTENT`), granted to `spark_role`.
+3. Write `secrets/spark_user.env` (client id and secret). When the principal
+   exists and the file is missing, rotate the principal credentials and write
+   the file again.
+
+### 5.2 Spark image
+
+- Base: official `apache/spark:<pinned>-python3` image (ASF).
+- Download `iceberg-spark-runtime` and `iceberg-aws-bundle` from Maven Central;
+  verify the published SHA checksum.
+- `pip install` pinned JupyterLab, PyIceberg, pandas, requests, boto3.
+  PySpark comes with the base image.
+- Install AWS CLI v2 (scenario 2 uses `aws s3 ls`).
+- `spark/conf/spark-defaults.conf` is a template with `${VAR}` placeholders.
+  `entrypoint.sh` renders it with `envsubst` from the environment and from
+  `secrets/spark_user.env`, then starts JupyterLab.
+- `spark.sql.extensions` = `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`.
+- Catalog `polaris`: `type=rest`, Polaris catalog API URI, `warehouse=lab_catalog`,
+  OAuth2 client credentials of `spark_user` (never `root`), scope
+  `PRINCIPAL_ROLE:ALL`, header `X-Iceberg-Access-Delegation=vended-credentials`.
+- Catalog `nessie`: `type=rest`, Nessie Iceberg REST URI with the `main` branch
+  as prefix/reference.
+- Catalog `rest`: rendered only when `REST_CATALOG_ENABLED=true`
+  (`make up-baseline` sets it).
+- `depends_on`: `polaris-setup` with `service_completed_successfully`, and
+  `nessie` healthy.
+
+### 5.3 S3 access model
+
+| Prefix | Writers | Credentials |
+|---|---|---|
+| `polaris/` | Spark FileIO, Polaris | Only credentials **vended** by Polaris through `polaris-s3-access`. The VM role has no access to `polaris/`, so a successful write proves that vending works. |
+| `nessie/` | Spark FileIO, Nessie | VM role through IMDSv2 |
+| `rest/` | Spark FileIO, rest-fixture | VM role through IMDSv2 |
+
+Nessie credential vending (STS assume-role) is investigated in the Nessie docs.
+The result goes into `NOTES.md`. Default configuration: no vending.
+
+### 5.4 Network
+
+- Host ports bound to `127.0.0.1` only: JupyterLab 8888, Spark UI 4040,
+  Polaris 8181 (API) and 8182 (management), Nessie 19120 and its management
+  port, rest-fixture (profile `baseline`).
+- Access from the user's machine: SSH tunnel (primary) and SSM port
+  forwarding (alternative). Both are documented in the README.
+- Security group: port 22 from the user's IP only, or no inbound port with SSM.
+  Documented, not managed by the scripts.
+
+### 5.5 S3 portability
+
+`.env` holds `S3_ENDPOINT` (empty = AWS), `AWS_REGION`, `S3_PATH_STYLE_ACCESS`,
+and optional static keys `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (empty
+on AWS, required on-premise where there is no IMDS). Every service reads only
+these variables. Polaris credential vending against MinIO/RustFS (STS endpoint
+or vending disabled) is checked in the Polaris docs; the procedure goes into
+the README and the findings into `NOTES.md`.
+
+## 6. Tests
+
+All tests are bash scripts that run `spark-sql`, PySpark or the AWS CLI inside
+the `spark` container.
+
+- `tests/s3-access.sh` (phase 1): write, read and delete an object in
+  `s3://${S3_BUCKET}/rest/_smoke/` with IMDS credentials. Negative check: a
+  write to `polaris/` fails with `AccessDenied`. The requirement says
+  "a test file in `s3://${S3_BUCKET}/`"; the VM role has no access to the
+  bucket root, so the test uses an allowed prefix (noted in `NOTES.md`).
+- `tests/catalog-smoke.sh <catalog>` (phases 2-4): create a namespace and a
+  table, insert rows, read them, check that the files are under the expected
+  prefix (`aws s3 ls`), run `docker compose restart`, check that the table and
+  rows still exist.
+- `make smoke-test`: `s3-access`, then `catalog-smoke` on `polaris` and
+  `nessie`, and on `rest` when the `baseline` profile is running.
+- `make lint`: `bash -n` on scripts, `docker compose config`, `jq` validation of
+  JSON files. No shellcheck (GPLv3, see CLAUDE.md rule 5).
+- No GitHub Actions CI: the tests need real AWS.
+
+## 7. Scenarios
+
+- One notebook per scenario: `scenarios/01-basic-cycle.ipynb` …
+  `scenarios/11-second-client.ipynb`, as listed in requirement phase 5.
+- `scenarios/lab.py`: runs the same SQL on `polaris` and `nessie` and shows
+  results side by side (pandas), with success or error per catalog.
+- Each notebook is idempotent: it drops the objects it creates at the start.
+- Scenario 6 uses the native Nessie REST API (`requests`).
+- Scenario 7 creates the read-only principal `reader_user` in Polaris and shows
+  that a write fails.
+- `make scenarios` runs every notebook headless with
+  `jupyter nbconvert --execute` (completion criterion 10.3).
+
+## 8. Makefile
+
+Targets: `up`, `up-baseline`, `down`, `reset` (removes volumes), `smoke-test`,
+`logs`, `sql-polaris`, `sql-nessie`, `sql-rest`, `lint`, `scenarios`.
+
+## 9. Documentation
+
+- `VERSIONS.md`: every pinned version, source link, compatibility matrix
+  (Spark ↔ Iceberg runtime ↔ Polaris ↔ Nessie ↔ PyIceberg), verification date.
+  Selection rule: the newest Spark line supported by the Iceberg runtime and
+  usable with both Polaris and Nessie.
+- `NOTES.md`: every deviation from the requirements and every conflict between
+  the requirements and project docs.
+- `EVALUATION.md`: Polaris/Nessie comparison on the eight criteria of
+  requirement phase 6. Observed facts kept separate from documentation facts,
+  sources cited, verification date for governance data.
+- `README.md`: the eight items of requirement section 9, with a Mermaid
+  architecture diagram.
+
+## 10. Work organization
+
+- One sprint: GitHub milestone "S1 — Iceberg catalog lab". One issue per plan
+  task, with a checklist.
+- This spec and the first plan are committed directly to `main` (repository
+  bootstrap). After that, every change goes through a branch and a PR; the user
+  merges.
+- PR grouping:
+  1. Stage 1: scaffolding, `VERSIONS.md`, `aws/` scripts.
+  2. Stage 2: one PR per phase (1 Spark + Postgres, 2 Polaris, 3 Nessie,
+     4 baseline, 5 scenarios, 6 evaluation + README).
+- Planning granularity: a detailed plan for stage 1 and phase 1 now. A separate
+  plan per later phase, written on the VM after the versions are verified,
+  because the real versions change configuration details.
+
+## 11. Completion criteria
+
+As in requirement section 10: `make up` starts cleanly on a fresh VM;
+`make smoke-test` passes on `polaris` and `nessie`; all scenario notebooks run
+end to end; no credential in git; `VERSIONS.md`, `NOTES.md`, `EVALUATION.md`
+are filled; `aws/teardown.sh` removes every resource `setup.sh` created.
