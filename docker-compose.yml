@@ -38,11 +38,14 @@ services:
       NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_PATH_STYLE_ACCESS: ${S3_PATH_STYLE_ACCESS:-false}
       # AWS default credential chain: the VM instance profile through IMDSv2.
       NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_AUTH_TYPE: APPLICATION_GLOBAL
+      # Optional static keys: empty on AWS, the default chain then falls through to the instance profile.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       # Spark signs its own S3 requests with the VM instance profile (spec section 5.3).
       NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_REQUEST_SIGNING_ENABLED: "false"
       # The check calls S3 HeadBucket, which the prefix-scoped VM policy denies (NOTES.md D10).
       NESSIE_CATALOG_OBJECT_STORES_HEALTH_CHECK_ENABLED: "false"
-      JAVA_OPTS_APPEND: -Xmx512m
+      JAVA_OPTS_APPEND: -Xmx384m -XX:MaxDirectMemorySize=128m
     mem_limit: 1g
     ports:
       - "127.0.0.1:19120:19120"

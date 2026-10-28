@@ -11,9 +11,8 @@ set -a; source .env; set +a
 nessie_get() { docker compose exec -T nessie curl -fsS "$1" 2>&1 || echo "request failed: $1"; }
 
 echo "nessie"
-ready=$(nessie_get http://127.0.0.1:9000/q/health/ready)
-assert_contains "$ready" "UP" "readiness check is UP"
-assert_not_contains "$ready" "request failed" "readiness endpoint answers HTTP 200"
+ready=$(nessie_get http://127.0.0.1:9000/q/health/ready | jq -r .status 2>&1 || true)
+assert_eq "$ready" "UP" "readiness check is UP"
 
 branch=$(nessie_get http://127.0.0.1:19120/api/v2/trees/main | jq -r '.reference.type + ":" + .reference.name' 2>&1 || true)
 assert_eq "$branch" "BRANCH:main" "default branch main exists"
