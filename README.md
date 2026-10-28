@@ -9,8 +9,13 @@ The lab is a test environment, not a production environment.
 
 ## Status
 
-Work in progress. The design and the first plan are ready; the implementation starts with
-the AWS scripts (Stage 1) and the Spark + Postgres stack (Phase 1).
+Work in progress. Stage 1 (AWS scripts) is done. Phase 1 adds Postgres and the Spark image.
+
+Quick check of Phase 1 on the VM:
+
+1. Run `make up`.
+2. Run `make smoke-test`.
+3. Run `make down`.
 
 | Document | Content |
 |---|---|

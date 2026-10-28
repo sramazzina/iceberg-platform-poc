@@ -79,7 +79,7 @@ succeeds (the bucket is empty at first).
 
 ## Run `teardown.sh`
 
-1. Stop the lab on the VM: `make down` (the target is added in Phase 1).
+1. Stop the lab on the VM: `make down`. The command `make reset` also deletes the Postgres volume.
 2. In CloudShell, set `AWS_REGION`, `S3_BUCKET`, `INSTANCE_ID` as for `setup.sh`.
 3. Run the script: `aws/teardown.sh`
 4. Type the bucket name when the script asks for it. Any other answer keeps the bucket.

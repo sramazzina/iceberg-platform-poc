@@ -1,0 +1,55 @@
+name: iceberg-lab
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POLARIS_DB_PASSWORD: ${POLARIS_DB_PASSWORD}
+      NESSIE_DB_PASSWORD: ${NESSIE_DB_PASSWORD}
+    volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/<major>/docker.
+      - pgdata:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d polaris"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  spark:
+    build:
+      context: ./spark
+      args:
+        SPARK_BASE_IMAGE: ${SPARK_BASE_IMAGE}
+        ICEBERG_VERSION: ${ICEBERG_VERSION}
+        ICEBERG_SPARK_RUNTIME_ARTIFACT: ${ICEBERG_SPARK_RUNTIME_ARTIFACT}
+        ICEBERG_SPARK_RUNTIME_SHA1: ${ICEBERG_SPARK_RUNTIME_SHA1}
+        ICEBERG_AWS_BUNDLE_SHA1: ${ICEBERG_AWS_BUNDLE_SHA1}
+        AWSCLI_VERSION: ${AWSCLI_VERSION}
+        LAB_UID: ${LAB_UID:-1000}
+    image: iceberg-lab-spark:${ICEBERG_VERSION}
+    init: true
+    environment:
+      S3_BUCKET: ${S3_BUCKET}
+      AWS_REGION: ${AWS_REGION}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_PATH_STYLE_ACCESS: ${S3_PATH_STYLE_ACCESS:-false}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN}
+    ports:
+      - "127.0.0.1:8888:8888"
+      - "127.0.0.1:4040:4040"
+    volumes:
+      - ./scenarios:/workspace/scenarios
+      - ./tests:/workspace/tests:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8888/api >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pgdata:
