@@ -2,6 +2,7 @@
 
 lint:
 	tests/lint.sh
+	tests/check-no-secrets.sh
 
 test-aws:
 	tests/test-iam-policies.sh
