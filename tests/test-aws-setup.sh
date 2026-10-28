@@ -8,7 +8,8 @@ export PATH="$ROOT/tests/stubs:$PATH"
 export AWS_REGION=eu-west-1 S3_BUCKET=test-bucket INSTANCE_ID=i-0123456789abcdef0
 export AWS_STUB_LOG
 AWS_STUB_LOG=$(mktemp)
-trap 'rm -f "$AWS_STUB_LOG"' EXIT
+TMP_COPY=
+trap 'rm -rf "$AWS_STUB_LOG" "$TMP_COPY"' EXIT
 unset POLARIS_EXTERNAL_ID
 
 echo "first run on an empty account"
@@ -27,6 +28,8 @@ assert_not_contains "$log" "update-assume-role-policy" "does not update a role i
 if [[ $out =~ POLARIS_EXTERNAL_ID=[0-9a-f]{32} ]]; then pass "prints a generated external id"; else fail "prints a generated external id"; fi
 assert_contains "$out" "POLARIS_ROLE_ARN=arn:aws:iam::123456789012:role/polaris-s3-access" "prints the Polaris role ARN"
 assert_contains "$out" "S3_BUCKET=test-bucket" "prints the bucket"
+ext=$(sed -n 's/^POLARIS_EXTERNAL_ID=//p' <<<"$out")
+assert_contains "$log" "\"sts:ExternalId\": \"$ext\"" "trust policy carries the printed external id"
 
 echo "second run, resources exist"
 : >"$AWS_STUB_LOG"
@@ -48,6 +51,15 @@ echo "us-east-1 has no location constraint"
 STUB_EXISTING=0 AWS_REGION=us-east-1 "$ROOT/aws/setup.sh" >/dev/null
 log=$(<"$AWS_STUB_LOG")
 assert_not_contains "$log" "LocationConstraint" "omits LocationConstraint in us-east-1"
+
+echo "broken template stops the script"
+TMP_COPY=$(mktemp -d)
+cp -r "$ROOT/aws" "$TMP_COPY/aws"
+printf '{"x":"${UNDEFINED_VAR}"}\n' >"$TMP_COPY/aws/iam/vm-role-policy.json"
+: >"$AWS_STUB_LOG"
+if STUB_EXISTING=0 "$TMP_COPY/aws/setup.sh" >/dev/null 2>&1; then fail "exits non-zero on a broken template"; else pass "exits non-zero on a broken template"; fi
+log=$(<"$AWS_STUB_LOG")
+assert_not_contains "$log" "put-role-policy --role-name lab-vm-role" "does not call put-role-policy with a broken document"
 
 echo "missing parameter"
 if (unset S3_BUCKET; "$ROOT/aws/setup.sh" >/dev/null 2>&1); then fail "fails without S3_BUCKET"; else pass "fails without S3_BUCKET"; fi

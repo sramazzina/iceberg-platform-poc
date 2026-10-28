@@ -36,8 +36,9 @@ aws s3api put-bucket-encryption --bucket "$S3_BUCKET" --server-side-encryption-c
 echo "    public access blocked, SSE-S3 enabled"
 
 echo "==> Inline policy $VM_POLICY_NAME on VM role $VM_ROLE_NAME"
+vm_policy=$(render_template "$SCRIPT_DIR/iam/vm-role-policy.json")
 aws iam put-role-policy --role-name "$VM_ROLE_NAME" --policy-name "$VM_POLICY_NAME" \
-  --policy-document "$(render_template "$SCRIPT_DIR/iam/vm-role-policy.json")"
+  --policy-document "$vm_policy"
 echo "    applied"
 
 echo "==> Role $POLARIS_ROLE_NAME"
@@ -49,18 +50,21 @@ if aws iam get-role --role-name "$POLARIS_ROLE_NAME" >/dev/null 2>&1; then
     [[ $POLARIS_EXTERNAL_ID == None ]] && POLARIS_EXTERNAL_ID=
   fi
   : "${POLARIS_EXTERNAL_ID:=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')}"
+  trust_policy=$(render_template "$SCRIPT_DIR/iam/polaris-role-trust.json")
   aws iam update-assume-role-policy --role-name "$POLARIS_ROLE_NAME" \
-    --policy-document "$(render_template "$SCRIPT_DIR/iam/polaris-role-trust.json")"
+    --policy-document "$trust_policy"
   echo "    trust policy updated"
 else
   : "${POLARIS_EXTERNAL_ID:=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')}"
+  trust_policy=$(render_template "$SCRIPT_DIR/iam/polaris-role-trust.json")
   aws iam create-role --role-name "$POLARIS_ROLE_NAME" \
     --description "Iceberg lab: Polaris credential vending on the polaris/ prefix" \
-    --assume-role-policy-document "$(render_template "$SCRIPT_DIR/iam/polaris-role-trust.json")" >/dev/null
+    --assume-role-policy-document "$trust_policy" >/dev/null
   echo "    created"
 fi
+polaris_policy=$(render_template "$SCRIPT_DIR/iam/polaris-role-policy.json")
 aws iam put-role-policy --role-name "$POLARIS_ROLE_NAME" --policy-name "$POLARIS_POLICY_NAME" \
-  --policy-document "$(render_template "$SCRIPT_DIR/iam/polaris-role-policy.json")"
+  --policy-document "$polaris_policy"
 echo "    policy applied"
 
 echo "==> Instance metadata options on $INSTANCE_ID"

@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
 # Test double for the AWS CLI. Appends every call to $AWS_STUB_LOG and answers
 # the read calls of aws/setup.sh and aws/teardown.sh.
+# It rejects an empty or non-JSON policy document, as the real CLI does.
 # STUB_EXISTING=1 simulates an account where the lab resources already exist.
 echo "$*" >>"$AWS_STUB_LOG"
+
+# Like the real CLI, reject an empty or non-JSON policy document (exit 252).
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+  flag=${args[i]}
+  if [[ $flag == --policy-document || $flag == --assume-role-policy-document ]]; then
+    if [[ -z ${args[i+1]:-} ]] || ! jq -e . >/dev/null 2>&1 <<<"${args[i+1]}"; then
+      echo "stub aws: invalid $flag" >&2
+      exit 252
+    fi
+  fi
+done
 
 exists() { [[ ${STUB_EXISTING:-0} == 1 ]]; }
 missing() { echo "An error occurred (NoSuchEntity)" >&2; exit 254; }
