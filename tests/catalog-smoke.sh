@@ -45,6 +45,8 @@ cleanup() {
   if ((own_files)) && [[ -n $root ]]; then
     docker compose exec -T spark aws s3 rm --recursive --quiet "$root/" >/dev/null 2>&1 \
       || echo "  warn - could not delete $root/"
+  elif ((own_files)); then
+    echo "  warn - table root unknown; S3 files of $table kept"
   fi
 }
 trap cleanup EXIT

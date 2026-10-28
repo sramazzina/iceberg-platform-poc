@@ -48,12 +48,14 @@ this VM.
 - STS credential vending (`client-iam`, `server-iam`) is off by default. Not tested.
 - The object-store health check calls S3 `HeadBucket`. The VM role allows `s3:ListBucket`
   only with an `s3:prefix` condition, so `HeadBucket` returns 403 and `/q/health/ready`
-  reports DOWN. `NESSIE_CATALOG_OBJECT_STORES_HEALTH_CHECK_ENABLED=false` removes this check.
+  reports DOWN. With `NESSIE_CATALOG_OBJECT_STORES_HEALTH_CHECK_ENABLED=false` this check reports
+  UP without an S3 call.
 - Ports: HTTP 19120 (Iceberg REST at `/iceberg`, native API at `/api/v2`), management 9000
   (`/q/health/ready`). The image has `curl` and `bash`.
 - Image: UBI 9 with OpenJDK 21, user `nessie` (UID 10000). The JVM takes 80 % of the
   container memory, and the objects cache takes 70 % of the heap. With `mem_limit: 1g` and
-  `JAVA_OPTS_APPEND=-Xmx512m` Nessie starts in about 7 s.
+  `JAVA_OPTS_APPEND=-Xmx512m` Nessie starts in about 7 s. (After review: the code uses
+  `-Xmx384m -XX:MaxDirectMemorySize=128m`, see "Execution notes".)
 - Authentication is off by default (`nessie.server.authentication.enabled=false`).
 - Spark REST catalog that worked: `type=rest`, `uri=http://nessie:19120/iceberg/main`.
   Do not set `prefix` or `warehouse` on the client (Nessie docs).
@@ -446,7 +448,7 @@ After the D8 entry, add:
 ### D9 — Phase 3 (Nessie) before Phase 2 (Polaris)
 - Requirement (section 8): the phases run in the order 2 (Polaris), 3 (Nessie), 4 (baseline).
 - Lab: Phase 3 runs before Phase 2 (user decision, 2026-10-28).
-- Why: Nessie has no credential vending and no bootstrap job, so it is the shorter path to a
+- Why: Nessie needs no credential vending and no bootstrap job, so it is the shorter path to a
   first catalog. `spark-defaults.conf` stays a static file until Phase 2, because only the
   Polaris catalog block needs secrets.
 
@@ -534,3 +536,22 @@ git commit -m "docs: record the Nessie findings and the phase order"
   reference): the lab runs on AWS. The endpoint and path-style options are already read from
   `.env`.
 - Nessie authentication and authorization (scenario 7 documents the model).
+
+## Execution notes (after review)
+
+The code blocks above are the plan as written. The reviews of each task changed the code.
+The code in the repository is the reference; read it, not this plan, before Phase 2.
+
+- `3515998`, Task 10:
+  - `nessie` gets the optional static keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+    (spec section 5.5). They are empty on AWS.
+  - `JAVA_OPTS_APPEND` is `-Xmx384m -XX:MaxDirectMemorySize=128m`, so heap, direct memory and
+    metaspace stay below `mem_limit: 1g`.
+  - `tests/nessie-service.sh` has one readiness assertion on the JSON field `status`, so the
+    failing run of Step 2 shows `4 assertion(s) failed`.
+- `84d3435`, Task 11: `tests/catalog-smoke.sh` has a cleanup policy per catalog (`drop_sql`,
+  `own_files`). It deletes S3 files only after a successful drop, and only under a table root
+  that contains the unique table name. `sql()` uses a temporary error file per call.
+- Task 12: `NOTES.md` also has F2 (Nessie runs without authentication). `docs/HANDOFF.md` also
+  lists this plan, the issues #13-#15 and the phase order decision.
+- `README.md` describes the SSH and SSM tunnels to the lab ports (spec section 5.4).

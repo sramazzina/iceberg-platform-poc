@@ -39,6 +39,7 @@
 9. PR grouping: PR A = issues #1-#6 (Stage 1, branch `stage1-aws-scripts`);
    PR B = issues #7-#9 (Phase 1). Phases 2-6 get one plan and one PR each, planned on the VM
    after Phase 1 passes.
+10. Phase 3 (Nessie) runs before Phase 2 (Polaris) (2026-10-28, `NOTES.md` D9).
 
 ## How to execute (from `CLAUDE.md`)
 
@@ -70,6 +71,9 @@ Only then start Task 7.
 - Polaris with `relational-jdbc` needs the admin-tool bootstrap job and the `polaris_schema` schema
   (already in the Postgres init script of Task 7). Details for Phase 2 are in the spec, section 5.
 - `apache/iceberg-rest-fixture` has no tag for Iceberg 1.11; the lab pins 1.10.1.
+- `spark` waits for a healthy `nessie`, so `make up` always starts Nessie.
+- Nessie publishes its management port on `127.0.0.1:9000`. A local MinIO (on-premise) also
+  uses port 9000: map one of them to another host port.
 
 ## Kick-off prompt for the VM session
 
