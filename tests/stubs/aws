@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Test double for the AWS CLI. Appends every call to $AWS_STUB_LOG and answers
+# the read calls of aws/setup.sh and aws/teardown.sh.
+# STUB_EXISTING=1 simulates an account where the lab resources already exist.
+echo "$*" >>"$AWS_STUB_LOG"
+
+exists() { [[ ${STUB_EXISTING:-0} == 1 ]]; }
+missing() { echo "An error occurred (NoSuchEntity)" >&2; exit 254; }
+
+case "$1 $2" in
+  "sts get-caller-identity") echo 123456789012 ;;
+  "ec2 describe-instances") echo "arn:aws:iam::123456789012:instance-profile/lab-vm-profile" ;;
+  "iam get-instance-profile") echo lab-vm-role ;;
+  "s3api head-bucket") exists || missing ;;
+  "iam get-role-policy") exists || missing ;;
+  "iam get-role")
+    if [[ $* == *"--role-name lab-vm-role"* ]]; then
+      echo "arn:aws:iam::123456789012:role/lab-vm-role"
+    elif exists; then
+      if [[ $* == *ExternalId* ]]; then echo existing-external-id; else echo "{}"; fi
+    else
+      missing
+    fi
+    ;;
+esac
+exit 0

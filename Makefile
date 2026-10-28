@@ -5,3 +5,4 @@ lint:
 
 test-aws:
 	tests/test-iam-policies.sh
+	tests/test-aws-setup.sh
