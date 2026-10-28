@@ -78,18 +78,23 @@ Layout:
 
 ### 4.1 Parameters
 
-`AWS_REGION`, `S3_BUCKET`, `INSTANCE_ID`, `VM_ROLE_NAME` (the existing VM
-role), `POLARIS_EXTERNAL_ID` (generated when absent and printed, the user
-copies it into `.env`).
+`AWS_REGION`, `S3_BUCKET`, `INSTANCE_ID`, and optional `POLARIS_EXTERNAL_ID`.
+When `POLARIS_EXTERNAL_ID` is absent, `setup.sh` reuses the value in the
+existing `polaris-s3-access` trust policy, or generates a new one. The script
+prints the values the user copies into `.env`. The VM role name is discovered
+from the instance, so it is not a parameter. Templates are rendered by a
+pure-bash function in `aws/lib.sh` (no `envsubst`, no extra tool).
 
 ### 4.2 `setup.sh` (idempotent)
 
 1. Create the bucket. Enable Block Public Access (all four settings). Enable
    default encryption SSE-S3.
-2. Put the inline policy `iceberg-lab-vm` on the **existing** VM role:
-   S3 read/write/list on `nessie/` and `rest/`, and `sts:AssumeRole` on
-   `polaris-s3-access`. Do not touch other policies or the instance profile
-   association.
+2. Find the VM role from `INSTANCE_ID` (instance profile → role). Put the
+   inline policy `iceberg-lab-vm` on this **existing** role: S3 read/write on
+   `nessie/` and `rest/`, list-only on `polaris/` (scenario 2 and the smoke
+   tests list the Polaris layout; reads and writes there still need vended
+   credentials), and `sts:AssumeRole` on `polaris-s3-access`. Do not touch
+   other policies or the instance profile association.
 3. Create the role `polaris-s3-access`. Trust policy: the VM role may call
    `sts:AssumeRole` when `sts:ExternalId` equals `POLARIS_EXTERNAL_ID`.
    Inline policy: S3 read/write/list on `polaris/` only.
@@ -102,7 +107,9 @@ Each step checks the current state first and skips or updates.
 
 1. Delete the inline policy `iceberg-lab-vm` from the VM role.
 2. Delete the role `polaris-s3-access` and its inline policy.
-3. Ask for confirmation, then empty and delete the bucket (all object versions).
+3. Ask for confirmation (the user types the bucket name), then empty and
+   delete the bucket. `setup.sh` never enables versioning, so
+   `aws s3 rb --force` removes everything.
 4. Print a reminder: the VM role and the hop limit stay as they are, because
    `setup.sh` did not create them.
 
@@ -153,11 +160,15 @@ Every version is pinned in `.env`. The tag `latest` is never used.
 - Base: official `apache/spark:<pinned>-python3` image (ASF).
 - Download `iceberg-spark-runtime` and `iceberg-aws-bundle` from Maven Central;
   verify the published SHA checksum.
-- `pip install` pinned JupyterLab, PyIceberg, pandas, requests, boto3.
-  PySpark comes with the base image.
+- `pip install` pinned JupyterLab, PyIceberg, pandas, pyarrow, requests
+  (`spark/requirements.txt`). PySpark comes with the base image. Python is the
+  base image's 3.10 (user decision; see `NOTES.md`).
+- Iceberg client version: 1.11.0, the version Polaris and Nessie are built
+  against (user decision; see `VERSIONS.md`).
 - Install AWS CLI v2 (scenario 2 uses `aws s3 ls`).
 - `spark/conf/spark-defaults.conf` is a template with `${VAR}` placeholders.
-  `entrypoint.sh` renders it with `envsubst` from the environment and from
+  `entrypoint.sh` renders it with a pure-bash placeholder substitution (same
+  approach as `aws/lib.sh`) from the environment and from
   `secrets/spark_user.env`, then starts JupyterLab.
 - `spark.sql.extensions` = `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`.
 - Catalog `polaris`: `type=rest`, Polaris catalog API URI, `warehouse=lab_catalog`,
@@ -174,7 +185,7 @@ Every version is pinned in `.env`. The tag `latest` is never used.
 
 | Prefix | Writers | Credentials |
 |---|---|---|
-| `polaris/` | Spark FileIO, Polaris | Only credentials **vended** by Polaris through `polaris-s3-access`. The VM role has no access to `polaris/`, so a successful write proves that vending works. |
+| `polaris/` | Spark FileIO, Polaris | Only credentials **vended** by Polaris through `polaris-s3-access`. The VM role can only list `polaris/`, never read or write it, so a successful write proves that vending works. |
 | `nessie/` | Spark FileIO, Nessie | VM role through IMDSv2 |
 | `rest/` | Spark FileIO, rest-fixture | VM role through IMDSv2 |
 
