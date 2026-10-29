@@ -10,6 +10,28 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-29-rustfs-onprem-design.md`.
 
+## Execution environment (changed on 2026-10-29, after Task 23) — READ FIRST
+
+The plan was written for the EC2 VM. Execution runs on the user's workstation instead:
+Windows, WSL2, Docker Desktop (32 GB). This machine has no AWS credentials and no AWS
+stack. These rules override the "Conventions" section below:
+
+- `.env` on this machine is a **local** file for the RustFS variant, made from
+  `.env.example`: `COMPOSE_FILE=docker-compose.yml:docker-compose.rustfs.yml`,
+  `S3_BUCKET=iceberg-lab`, random local passwords and keys, no AWS value. Claude may change
+  its lines. Never print it.
+- The file `RF_ENV` does not exist any more. Where a step has
+  `bash -c 'set -a; . "$RF_ENV"; set +a; <command>'`, run `<command>` directly.
+- "Return to the AWS stack" (`make up` at the end of a task) means: run `make up` (the stack
+  returns to the `.env` selection, the variant).
+- To check the AWS stack configuration statically, use `COMPOSE_FILE=docker-compose.yml`
+  in the shell. The AWS stack cannot run here (no S3 access).
+- Task 27 Step 3 (AWS regression) is **not run here**. The user runs it on the EC2 VM
+  before the merge. The PR body says so.
+- The verification of the variant counts as **Windows (WSL2) + Docker Desktop**, not as
+  plain Linux. Task 28 documents this (README and NOTES): verified on WSL2 + Docker Desktop;
+  not verified on native Linux Docker Engine and on macOS.
+
 ---
 
 ## Facts verified on 2026-10-29
