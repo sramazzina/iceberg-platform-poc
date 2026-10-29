@@ -2,31 +2,145 @@
 
 A reproducible lab to evaluate and compare two Apache Iceberg REST catalogs,
 **Apache Polaris** and **Project Nessie**, on one Amazon EC2 VM with Docker Compose.
-Data and metadata files are stored on a real AWS S3 bucket. The lab can switch to an
-on-premise S3-compatible store (MinIO, RustFS) by editing `.env` only.
+Data and metadata files are stored on a real AWS S3 bucket. The configuration reads every
+storage setting from `.env`, so that a later phase can switch the lab to an on-premise
+S3-compatible store (MinIO, RustFS); this switch is not verified yet.
 
 The lab is a test environment, not a production environment.
 
 ## Status
 
-Work in progress. Stage 1 (AWS scripts) and Phase 1 (Postgres, Spark image) are done.
-Phase 3 adds Nessie, before Phase 2 (Polaris), see `NOTES.md` D9.
+Work in progress. Stage 1 (AWS scripts), Phase 1 (Postgres, Spark image), Phase 2 (Polaris)
+and Phase 3 (Nessie) are done. The baseline catalog `rest` (Phase 4), the scenario notebooks
+(Phase 5) and the evaluation (Phase 6) are not done yet.
 
-Quick check on the VM:
+## What the lab contains
 
-1. Run `make up`.
-2. Run `make smoke-test`.
-3. Run `make down`.
+Spark sees the catalogs that are on (see [Choose the catalogs](#choose-the-catalogs)).
+Each catalog writes to its own S3 prefix.
 
-Open a Spark SQL shell on the Nessie catalog with `make sql-nessie`.
+| Spark catalog | Service | S3 prefix | S3 credentials of Spark |
+|---|---|---|---|
+| `polaris` | Apache Polaris | `s3://${S3_BUCKET}/polaris/` | Vended by Polaris (role `polaris-s3-access`) |
+| `nessie` | Project Nessie (Iceberg REST endpoint) | `s3://${S3_BUCKET}/nessie/` | VM instance profile |
+| `rest` (Phase 4, Compose profile `baseline`) | `apache/iceberg-rest-fixture` | `s3://${S3_BUCKET}/rest/` | VM instance profile |
 
-| Document | Content |
+```mermaid
+flowchart LR
+  user([User]) -- SSH tunnel / SSM --> jupyter
+  subgraph vm[EC2 VM - Docker Compose]
+    jupyter[spark + JupyterLab]
+    polaris[Apache Polaris<br/>profile polaris]
+    nessie[Project Nessie<br/>profile nessie]
+    rest[iceberg-rest-fixture<br/>profile baseline]
+    pg[(Postgres<br/>polaris, nessie)]
+    jupyter -- Iceberg REST --> polaris
+    jupyter -- Iceberg REST --> nessie
+    jupyter -. Iceberg REST .-> rest
+    polaris --> pg
+    nessie --> pg
+  end
+  subgraph s3[S3 bucket]
+    p[polaris/]
+    n[nessie/]
+    r[rest/]
+  end
+  jupyter -- vended credentials --> p
+  jupyter -- instance profile --> n
+  jupyter -. instance profile .-> r
+  polaris -- sts:AssumeRole --> p
+  nessie -- instance profile --> n
+```
+
+`postgres` and `spark` always run. The catalogs are Compose profiles and are off by default.
+
+## Prerequisites
+
+- An EC2 VM with an IAM role (instance profile). Size, operating system and security group:
+  [aws/README-aws.md, "VM sizing"](aws/README-aws.md#vm-sizing).
+- On the VM: Docker Engine with the Compose plugin, `make`, `git`, `jq`, and your user in the
+  `docker` group ([aws/README-aws.md, "Software on the VM"](aws/README-aws.md#software-on-the-vm)).
+- Access to AWS CloudShell with administrative credentials, in the region of the VM. Only
+  CloudShell creates the AWS resources; the VM never has administrative credentials.
+- SSH access to the VM (or the SSM agent on the VM).
+
+## First start
+
+Do these steps once. Steps 1-2 run in CloudShell, the other steps on the VM.
+
+1. In CloudShell, run `aws/setup.sh`
+   ([aws/README-aws.md, "Run setup.sh"](aws/README-aws.md#run-setupsh)). It creates the bucket,
+   the policy of the VM role and the role `polaris-s3-access`.
+2. Copy the four lines that `setup.sh` prints at the end (`S3_BUCKET`, `AWS_REGION`,
+   `POLARIS_ROLE_ARN`, `POLARIS_EXTERNAL_ID`).
+3. On the VM, clone the repository and go to its folder.
+4. Copy the template: `cp .env.example .env`.
+5. In `.env`, write the four values of step 2 on the lines that already exist. Do not add
+   duplicate lines.
+6. In `.env`, replace each `change-me` with a value of your choice, for example the output of
+   `openssl rand -hex 16`. The Polaris root id and secret must not contain `"`, `\` or `:`.
+7. In `.env`, set `LAB_UID` to the output of `id -u`.
+8. In `.env`, set `COMPOSE_PROFILES` to the catalog that you want, for example
+   `COMPOSE_PROFILES=nessie`. Leave it empty for no catalog.
+9. Check the S3 access of the VM
+   ([aws/README-aws.md, "Check from the VM"](aws/README-aws.md#check-from-the-vm)).
+10. Start the lab: `make up`. The first start builds the Spark image (several minutes).
+11. Test the lab: `make smoke-test`. Every test ends with `all assertions passed` or `ok` lines.
+
+`.env` holds passwords and account values. It is git-ignored: never commit it and never share it.
+
+## Choose the catalogs
+
+1. Set `COMPOSE_PROFILES` in `.env`: `polaris`, `nessie`, or both (`nessie,polaris`, no
+   spaces). Leave it empty for no catalog.
+2. Run `make up`. It starts the catalogs in `COMPOSE_PROFILES` and stops the others.
+   The data of a stopped catalog stays (Postgres database and S3 prefix).
+3. Run `make smoke-test`. It tests the base stack and each catalog that is on.
+
+The catalogs do not have to run together. To compare them, run the same test or notebook once
+with each catalog.
+
+## Daily use
+
+- **Spark SQL shell**: `make sql-polaris` or `make sql-nessie`. The catalog must be on:
+  otherwise Spark answers "catalog not found". Example:
+
+  ```sql
+  CREATE NAMESPACE IF NOT EXISTS demo;
+  CREATE TABLE demo.t (id INT, name STRING) USING iceberg;
+  INSERT INTO demo.t VALUES (1, 'a');
+  SELECT * FROM demo.t;
+  ```
+
+- **JupyterLab**: open <http://localhost:8888> through a tunnel (see
+  [Access from your machine](#access-from-your-machine)) and enter `JUPYTER_TOKEN` from
+  `.env`. Save your notebooks in `scenarios/`: this folder is on the disk of the VM, so the
+  notebooks stay after a restart. In a notebook, the catalogs that are on are already
+  configured:
+
+  ```python
+  from pyspark.sql import SparkSession
+  spark = SparkSession.builder.getOrCreate()
+  spark.sql("SHOW NAMESPACES IN nessie").show()
+  ```
+
+- **Drop a Polaris table with its files**: `DROP TABLE polaris.<namespace>.<table> PURGE`.
+  Without `PURGE`, the files stay under `polaris/`, and the VM role cannot delete them (only
+  CloudShell can).
+- **Logs**: `make logs`.
+
+## Make targets
+
+| Target | What it does |
 |---|---|
-| [Requirements](docs/req/prompt-agente-lab-iceberg-polaris-nessie.md) | Original requirements (Italian) |
-| [Design spec](docs/superpowers/specs/2026-10-28-iceberg-catalog-lab-design.md) | Architecture, services, S3 access model, tests |
-| [Plan: Stage 1 and Phase 1](docs/superpowers/plans/2026-10-28-stage1-and-phase1.md) | Task-by-task implementation plan |
-| [Plan: Phase 3 (Nessie)](docs/superpowers/plans/2026-10-28-phase3-nessie.md) | Task-by-task implementation plan |
-| [Handoff](docs/HANDOFF.md) | Current state and decisions |
+| `make up` | Builds the Spark image if necessary, starts `postgres`, `spark` and the catalogs in `COMPOSE_PROFILES`, stops the other catalogs, and waits until all services are healthy |
+| `make down` | Stops and removes every container, of every catalog. The data stays |
+| `make reset` | Like `make down`, and also **deletes the Postgres volume**: all Polaris and Nessie metadata is lost. The S3 files stay |
+| `make smoke-test` | Runs the acceptance tests of the base stack and of each catalog that is on |
+| `make sql-polaris`, `make sql-nessie` | Opens a Spark SQL shell on the catalog |
+| `make logs` | Shows the logs of the running services |
+| `make lint` | Static checks: script syntax, JSON, Compose file, no secret in tracked files |
+| `make test-aws` | Tests the AWS scripts against a stub AWS CLI (no AWS access) |
 
 ## Access from your machine
 
@@ -39,6 +153,10 @@ authentication, so do not open these ports in the security group. Use a tunnel i
 | Spark UI (only while a Spark session runs) | 4040 | <http://localhost:4040> |
 | Nessie API | 19120 | <http://localhost:19120/api/v2/trees> |
 | Nessie management (health) | 9000 | <http://localhost:9000/q/health/ready> |
+| Polaris API (needs a token) | 8181 | <http://localhost:8181/api/management/v1/catalogs> |
+| Polaris management (health) | 8182 | <http://localhost:8182/q/health/ready> |
+
+A catalog port answers only when the catalog is on (`COMPOSE_PROFILES`).
 
 ### SSH tunnel
 
@@ -52,6 +170,8 @@ authentication, so do not open these ports in the security group. Use a tunnel i
      -L 4040:127.0.0.1:4040 \
      -L 19120:127.0.0.1:19120 \
      -L 9000:127.0.0.1:9000 \
+     -L 8181:127.0.0.1:8181 \
+     -L 8182:127.0.0.1:8182 \
      admin@<vm-public-ip>
    ```
 
@@ -75,47 +195,56 @@ Session Manager plugin must be installed on your machine.
      --parameters '{"portNumber":["8888"],"localPortNumber":["8888"]}'
    ```
 
-2. Repeat the command in a new terminal for each other port (4040, 19120, 9000).
+2. Repeat the command in a new terminal for each other port (4040, 19120, 9000, 8181, 8182).
 
-## What the lab contains
+## Stop and clean up
 
-One Spark session sees the catalogs below. Each catalog writes to its own S3 prefix.
+- **At the end of a work session**: run `make down`, then stop the VM in the EC2 console. A
+  stopped VM costs nothing for compute, but its EBS volume and the S3 bucket still cost money.
+- **To remove the lab completely**:
+  1. On the VM, run `make down`.
+  2. In CloudShell, run `aws/teardown.sh`
+     ([aws/README-aws.md, "Run teardown.sh"](aws/README-aws.md#run-teardownsh)). It deletes
+     the bucket (after you type its name), the role `polaris-s3-access` and the lab policy of
+     the VM role.
+  3. Terminate the VM, or keep it for other work.
+- Costs: [aws/README-aws.md, "Costs"](aws/README-aws.md#costs).
 
-| Spark catalog | Service | S3 prefix |
+## Troubleshooting
+
+| Symptom | Cause | What to do |
 |---|---|---|
-| `polaris` | Apache Polaris | `s3://${S3_BUCKET}/polaris/` |
-| `nessie` | Project Nessie (Iceberg REST endpoint) | `s3://${S3_BUCKET}/nessie/` |
-| `rest` (optional, Compose profile `baseline`) | `apache/iceberg-rest-fixture` | `s3://${S3_BUCKET}/rest/` |
+| `Unable to locate credentials`, or an S3 call hangs, in a container | The IMDS hop limit of the VM is 1, so the containers cannot reach the instance profile | In CloudShell, run `aws/setup.sh` again (it sets the hop limit to 2) |
+| `aws s3 ls` on the VM uses the wrong identity | `AWS_*` variables or a `[default]` profile have priority over the instance profile | See [aws/README-aws.md, "Check from the VM"](aws/README-aws.md#check-from-the-vm) |
+| `make up` fails, and `docker compose logs polaris-setup` says `secrets/ is not writable` | Docker created `secrets/` as root, because the stack was started without `make up` | Run `sudo chown $(id -u) secrets`, then `make up` |
+| The polaris-setup log says `credentials reset` | The file `secrets/spark_user.env` was missing or did not work, so setup made new credentials | Run `docker compose restart spark`: a running `spark` keeps the old credentials |
+| Spark says `catalog not found` | The catalog is off, or `COMPOSE_PROFILES` has a typo (the spark log says `no Spark catalog for profile ...`) | Check `COMPOSE_PROFILES` in `.env`, then run `make up` |
+| HTTP 401 from Polaris in a long Spark session | The Polaris token of the session is no longer valid. Tokens last one hour; the Iceberg client normally refreshes them, but a refresh can fail, for example after a restart of Polaris | Start a new Spark session (`make sql-polaris`, or restart the notebook kernel) |
+| `make smoke-test` fails on `catalog-smoke.sh polaris` with `files left under ...` | A Polaris table was dropped without its files | Delete the listed files from CloudShell (`aws s3 rm`); the VM role cannot delete under `polaris/` |
+| A service is not healthy after `make up` | A service did not start | Run `docker compose ps -a`, then `docker compose logs <service>` |
 
-```mermaid
-flowchart LR
-  user([User]) -- SSH tunnel / SSM --> jupyter
-  subgraph vm[EC2 VM - Docker Compose]
-    jupyter[spark + JupyterLab]
-    polaris[Apache Polaris]
-    nessie[Project Nessie]
-    rest[iceberg-rest-fixture<br/>profile baseline]
-    pg[(Postgres<br/>polaris, nessie)]
-    jupyter -- Iceberg REST --> polaris
-    jupyter -- Iceberg REST --> nessie
-    jupyter -. Iceberg REST .-> rest
-    polaris --> pg
-    nessie --> pg
-  end
-  subgraph s3[S3 bucket]
-    p[polaris/]
-    n[nessie/]
-    r[rest/]
-  end
-  jupyter -- vended credentials --> p
-  jupyter -- instance profile --> n
-  jupyter -. instance profile .-> r
-  polaris -- sts:AssumeRole --> p
-  nessie -- instance profile --> n
-```
+## On-premise S3 storage (not verified)
 
-The full README (prerequisites, start procedure, access through SSH and SSM, service URLs,
-on-premise storage, teardown, troubleshooting) is written in the last phase of the project.
+`.env` has the settings for an S3-compatible store: `S3_ENDPOINT`, `S3_PATH_STYLE_ACCESS`,
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (there is no IMDS on-premise). The services
+read them, but the lab does not test this case yet. Known gaps: the AWS CLI in the `spark`
+container ignores `S3_ENDPOINT`, Polaris credential vending needs an STS endpoint or
+`stsUnavailable`, and the Nessie management port 9000 is also the default MinIO port. A later
+phase verifies the procedure (`NOTES.md`).
+
+## Documents
+
+| Document | Content |
+|---|---|
+| [Requirements](docs/req/prompt-agente-lab-iceberg-polaris-nessie.md) | Original requirements (Italian) |
+| [Design spec](docs/superpowers/specs/2026-10-28-iceberg-catalog-lab-design.md) | Architecture, services, S3 access model, tests |
+| [AWS runbook](aws/README-aws.md) | VM sizing, AWS setup and teardown, costs |
+| [Notes](NOTES.md) | Deviations from the requirements and findings |
+| [Versions](VERSIONS.md) | Pinned versions with sources |
+| [Plan: Stage 1 and Phase 1](docs/superpowers/plans/2026-10-28-stage1-and-phase1.md) | Task-by-task implementation plan |
+| [Plan: Phase 3 (Nessie)](docs/superpowers/plans/2026-10-28-phase3-nessie.md) | Task-by-task implementation plan |
+| [Plan: Phase 2 (Polaris)](docs/superpowers/plans/2026-10-29-phase2-polaris.md) | Task-by-task implementation plan |
+| [Handoff](docs/HANDOFF.md) | Current state and decisions (for the next work session) |
 
 ## License
 

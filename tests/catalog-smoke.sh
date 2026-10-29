@@ -7,16 +7,20 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/tests/lib/assert.sh"
 cd "$ROOT"
+if [[ -v COMPOSE_PROFILES ]]; then keep=$COMPOSE_PROFILES; fi
 set -a; source .env; set +a
+if [[ -v keep ]]; then COMPOSE_PROFILES=$keep; fi
 
 catalog=${1:-}
 ts=$(date +%s)
-# Per-catalog policy. A catalog with server-side purge (Polaris, Phase 2) uses
-# drop_sql="DROP TABLE IF EXISTS %s PURGE" and own_files=0.
+# Per-catalog policy.
+# own_files=1: the VM role deletes the table files after the drop (Nessie never deletes files).
+# own_files=0: DROP TABLE ... PURGE deletes the files with the credentials that the catalog
+# vends; the VM role cannot write under polaris/.
 case $catalog in
-  # own_files=1: the VM role deletes the table files after the drop (Nessie never deletes files).
   nessie) prefix=nessie; drop_sql="DROP TABLE IF EXISTS %s"; own_files=1 ;;
-  *) echo "unknown catalog '$catalog'; usage: tests/catalog-smoke.sh nessie" >&2; exit 2 ;;
+  polaris) prefix=polaris; drop_sql="DROP TABLE IF EXISTS %s PURGE"; own_files=0 ;;
+  *) echo "unknown catalog '$catalog'; usage: tests/catalog-smoke.sh nessie|polaris" >&2; exit 2 ;;
 esac
 
 table="$catalog.smoke.t_$ts"
@@ -39,10 +43,22 @@ cleanup() {
   local out
   out=$(sql "$(printf "$drop_sql" "$table")" 2>&1)
   if [[ $out == *"spark-sql failed"* || -z $(docker compose ps -q --status running spark) ]]; then
+    if ((!own_files)); then
+      # The VM role cannot delete these files: they stay until the user removes them.
+      echo "  FAIL - could not drop $table with PURGE; delete ${root:-its files} from CloudShell"
+      exit 1
+    fi
     echo "  warn - could not drop $table; S3 files kept"
     return 0
   fi
-  if ((own_files)) && [[ -n $root ]]; then
+  if ((!own_files)) && [[ -n $root ]]; then
+    left=$(docker compose exec -T spark aws s3 ls --recursive "$root/" 2>/dev/null || true)
+    if [[ -n $left ]]; then
+      echo "  FAIL - files left under $root/ after the purge:"
+      echo "$left"
+      exit 1
+    fi
+  elif ((own_files)) && [[ -n $root ]]; then
     docker compose exec -T spark aws s3 rm --recursive --quiet "$root/" >/dev/null 2>&1 \
       || echo "  warn - could not delete $root/"
   elif ((own_files)); then
@@ -84,10 +100,10 @@ if [[ $catalog == nessie ]]; then
 fi
 
 echo "restart"
-if docker compose restart >/dev/null 2>&1 && docker compose up -d --wait >/dev/null 2>&1; then
-  pass "docker compose restart"
+if docker compose stop >/dev/null 2>&1 && docker compose up -d --wait >/dev/null 2>&1; then
+  pass "stack restart (stop and up)"
 else
-  fail "docker compose restart"
+  fail "stack restart (stop and up)"
 fi
 assert_eq "$(rows)" $'row=1:a\nrow=2:b' "the table and its rows survive the restart"
 

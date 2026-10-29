@@ -1,4 +1,4 @@
-.PHONY: lint test-aws up down reset logs sql-nessie smoke-test
+.PHONY: lint test-aws up down reset logs sql-nessie sql-polaris smoke-test
 
 lint:
 	tests/lint.sh
@@ -9,14 +9,21 @@ test-aws:
 	tests/test-aws-setup.sh
 	tests/test-aws-teardown.sh
 
+# Every profile, so that the catalogs that are off are also stopped or removed.
+ALL_PROFILES = COMPOSE_PROFILES='*'
+
 up:
+	mkdir -p secrets
+	@on=$$(docker compose config --services) || exit 1; \
+	off=$$($(ALL_PROFILES) docker compose config --services | grep -vxF "$$on" || true); \
+	if [ -n "$$off" ]; then $(ALL_PROFILES) docker compose stop $$off; fi
 	docker compose up -d --build --wait
 
 down:
-	docker compose down
+	$(ALL_PROFILES) docker compose down
 
 reset:
-	docker compose down -v
+	$(ALL_PROFILES) docker compose down -v
 
 logs:
 	docker compose logs -f --tail=200
@@ -24,8 +31,8 @@ logs:
 sql-nessie:
 	docker compose exec spark spark-sql --conf spark.sql.defaultCatalog=nessie
 
+sql-polaris:
+	docker compose exec spark spark-sql --conf spark.sql.defaultCatalog=polaris
+
 smoke-test:
-	tests/postgres-init.sh
-	tests/s3-access.sh
-	tests/nessie-service.sh
-	tests/catalog-smoke.sh nessie
+	tests/smoke-test.sh

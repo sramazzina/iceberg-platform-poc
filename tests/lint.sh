@@ -16,7 +16,7 @@ done < <(find . -path ./.git -prune -o -name '*.json' -type f -print0)
 if [[ -f docker-compose.yml ]]; then
   env_file=.env
   [[ -f $env_file ]] || env_file=.env.example
-  docker compose --env-file "$env_file" config --quiet || { echo "invalid docker-compose.yml"; status=1; }
+  COMPOSE_PROFILES='*' docker compose --env-file "$env_file" config --quiet || { echo "invalid docker-compose.yml"; status=1; }
 fi
 
 if ((status == 0)); then echo "lint passed"; fi

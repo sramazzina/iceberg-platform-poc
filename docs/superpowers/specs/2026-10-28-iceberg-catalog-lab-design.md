@@ -131,16 +131,44 @@ notes.
 | Service | Image | Role |
 |---|---|---|
 | `postgres` | `postgres:<pinned>` | One instance. Init script creates databases `polaris` and `nessie`, each with its own user. Persistent volume. Not published on the host. |
-| `polaris-bootstrap` (only if required) | `apache/polaris-admin-tool:<pinned>` | One-shot realm bootstrap for `relational-jdbc`. Idempotent. Added only if the Polaris docs require it; the deviation goes into `NOTES.md`. |
+| `polaris-bootstrap` | `apache/polaris-admin-tool:<pinned>` | One-shot realm bootstrap for `relational-jdbc` (`bootstrap -f <private file>`: the root id and secret are in a file, not on the command line, because the image entrypoint logs the command line). Required: the Polaris 1.8.0 server does not create its tables. Idempotent: a second run skips. Noted in `NOTES.md`. |
 | `polaris` | `apache/polaris:<pinned>` | Iceberg REST catalog, RBAC, credential vending. Persistence `relational-jdbc`. Root credentials from `.env`. |
-| `polaris-setup` | light image with `curl` and `jq` (pinned) | One-shot, idempotent. See 5.1. |
+| `polaris-setup` | `alpine/curl:<pinned>` (`sh`, `curl`, `sed`; no `jq`) | One-shot, idempotent. See 5.1. |
 | `nessie` | `ghcr.io/projectnessie/nessie:<pinned>` | JDBC version store on database `nessie`. Iceberg REST at `/iceberg`. Warehouse `s3://${S3_BUCKET}/nessie/`. S3 access server-side with the AWS default credential chain (IMDS). No authentication. |
 | `spark` | built from `spark/Dockerfile` | See 5.2. |
 | `rest-fixture` (profile `baseline`) | `apache/iceberg-rest-fixture:<pinned>` | Warehouse `s3://${S3_BUCKET}/rest/`. JDBC catalog on a SQLite **file** in a volume, so the restart test passes. |
 
 Every version is pinned in `.env`. The tag `latest` is never used.
 
+### 5.0 Catalog selection (added 2026-10-29)
+
+- The catalogs are off by default. Each catalog is a Compose profile:
+  `polaris` (`polaris-bootstrap`, `polaris`, `polaris-setup`), `nessie` (`nessie`)
+  and `baseline` (`rest-fixture`). `postgres` and `spark` have no profile, so they
+  always start.
+- The user chooses the catalogs with `COMPOSE_PROFILES` in `.env`, for example
+  `COMPOSE_PROFILES=nessie`. Compose reads this variable itself. Use `make up`: it
+  also creates `secrets/` as the host user and stops the catalogs that are off.
+  `.env.example` leaves it empty.
+- The lab must contain every catalog, but the catalogs do not have to run together.
+  The tests and the scenarios need one catalog at a time.
+- `make up` also stops the services of the catalogs that are not in
+  `COMPOSE_PROFILES`, so the running services always match `.env`.
+- Stopping a catalog keeps its data: its Postgres database and its S3 prefix stay.
+
+### 5.0.1 Nessie CLI (requested 2026-10-29, later phase)
+
+- The lab includes the Nessie CLI, for the Nessie native API (branches, tags, commits,
+  merges) from the command line. Issue #22 lists the open points: distribution and
+  license, where it runs (spark image or a service in the profile `nessie`), pinned
+  version, Makefile target, test.
+- Not part of Phase 2. The design and the plan come in a later phase.
+
 ### 5.1 `polaris-setup`
+
+The script is POSIX `sh`. It reads the JSON answers with `sed`, because the image
+has no `jq` (noted in `NOTES.md`). It runs with the UID `LAB_UID`, so the `spark`
+container can read the file it writes.
 
 1. Get a token as `root`.
 2. Create when missing (HTTP 409 on create counts as "already present"):
@@ -152,9 +180,12 @@ Every version is pinned in `.env`. The tag `latest` is never used.
    - principal role `spark_role`, granted to `spark_user`;
    - catalog role `lab_admin` on `lab_catalog` with the privileges Spark needs
      (`CATALOG_MANAGE_CONTENT`), granted to `spark_role`.
-3. Write `secrets/spark_user.env` (client id and secret). When the principal
-   exists and the file is missing, rotate the principal credentials and write
-   the file again.
+3. Write `secrets/spark_user.env` (client id and secret). Polaris shows the
+   secret only once, in the answer to the create call. When the principal exists
+   and the file is missing, reset the principal credentials
+   (`POST /principals/spark_user/reset`, as `root`) and write the file again.
+   When the principal exists and the file exists, keep the file only if a token
+   call with its credentials works; otherwise reset the credentials.
 
 ### 5.2 Spark image
 
@@ -167,20 +198,27 @@ Every version is pinned in `.env`. The tag `latest` is never used.
 - Iceberg client version: 1.11.0, the version Polaris and Nessie are built
   against (user decision; see `VERSIONS.md`).
 - Install AWS CLI v2 (scenario 2 uses `aws s3 ls`).
-- `spark/conf/spark-defaults.conf` is a template with `${VAR}` placeholders.
-  `entrypoint.sh` renders it with a pure-bash placeholder substitution (same
-  approach as `aws/lib.sh`) from the environment and from
-  `secrets/spark_user.env`, then starts JupyterLab.
+- The Spark configuration has a common part (`spark/conf/spark-defaults.conf`) and
+  one template per catalog profile (`spark/conf/catalogs/<profile>.conf`). The
+  profile `baseline` renders the Spark catalog `rest` (`catalogs/baseline.conf`).
+- The templates have `${VAR}` placeholders. At container start, `entrypoint.sh`
+  joins the common part and the template of each catalog whose profile is in
+  `COMPOSE_PROFILES` (section 5.0). It replaces the placeholders with a pure-bash
+  substitution (same approach as `aws/lib.sh`) from the environment and from
+  `secrets/spark_user.env`, and writes `/opt/spark/conf/spark-defaults.conf`.
+  Then it starts JupyterLab, or runs the command it was given.
 - `spark.sql.extensions` = `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`.
 - Catalog `polaris`: `type=rest`, Polaris catalog API URI, `warehouse=lab_catalog`,
   OAuth2 client credentials of `spark_user` (never `root`), scope
-  `PRINCIPAL_ROLE:ALL`, header `X-Iceberg-Access-Delegation=vended-credentials`.
+  `PRINCIPAL_ROLE:ALL`, header `X-Iceberg-Access-Delegation=vended-credentials`,
+  `rest.auth.type=oauth2` and `oauth2-server-uri` (without these two, the Iceberg
+  1.11 client logs deprecation warnings).
 - Catalog `nessie`: `type=rest`, Nessie Iceberg REST URI with the `main` branch
   as prefix/reference.
-- Catalog `rest`: rendered only when `REST_CATALOG_ENABLED=true`
-  (`make up-baseline` sets it).
+- Catalog `rest`: rendered only when the `baseline` profile is active.
 - `depends_on`: `polaris-setup` with `service_completed_successfully`, and
-  `nessie` healthy.
+  `nessie` healthy, both with `required: false`, so `spark` starts also when a
+  catalog is off.
 
 ### 5.3 S3 access model
 
@@ -224,10 +262,17 @@ the `spark` container.
   bucket root, so the test uses an allowed prefix (noted in `NOTES.md`).
 - `tests/catalog-smoke.sh <catalog>` (phases 2-4): create a namespace and a
   table, insert rows, read them, check that the files are under the expected
-  prefix (`aws s3 ls`), run `docker compose restart`, check that the table and
+  prefix (`aws s3 ls`), stop and start the stack (`docker compose stop`, then
+  `docker compose up -d --wait`, in dependency order), check that the table and
   rows still exist.
-- `make smoke-test`: `s3-access`, then `catalog-smoke` on `polaris` and
-  `nessie`, and on `rest` when the `baseline` profile is running.
+- `tests/polaris-service.sh` (phase 2): Polaris is ready, `lab_catalog` exists
+  with its base location, and the Spark catalog uses `spark_user`, not `root`.
+- In `catalog-smoke.sh polaris`, the cleanup runs `DROP TABLE ... PURGE`. Spark
+  deletes the files itself with the credentials vended by Polaris, so the
+  Polaris setting `polaris.config.drop-with-purge.enabled` is not needed
+  (verified on 2026-10-29). The VM role never deletes under `polaris/`.
+- `make smoke-test`: `s3-access`, then `catalog-smoke` on each catalog in
+  `COMPOSE_PROFILES`. With no catalog on, it runs `s3-access` only and says so.
 - `make lint`: `bash -n` on scripts, `docker compose config`, `jq` validation of
   JSON files. No shellcheck (GPLv3, see CLAUDE.md rule 5).
 - No GitHub Actions CI: the tests need real AWS.
@@ -236,8 +281,9 @@ the `spark` container.
 
 - One notebook per scenario: `scenarios/01-basic-cycle.ipynb` …
   `scenarios/11-second-client.ipynb`, as listed in requirement phase 5.
-- `scenarios/lab.py`: runs the same SQL on `polaris` and `nessie` and shows
-  results side by side (pandas), with success or error per catalog.
+- `scenarios/lab.py`: runs the SQL of a scenario on the catalog that is on and
+  shows the result (pandas), with success or error. To compare the catalogs, the
+  user runs the same notebook once per catalog.
 - Each notebook is idempotent: it drops the objects it creates at the start.
 - Scenario 6 uses the native Nessie REST API (`requests`).
 - Scenario 7 creates the read-only principal `reader_user` in Polaris and shows
@@ -247,8 +293,10 @@ the `spark` container.
 
 ## 8. Makefile
 
-Targets: `up`, `up-baseline`, `down`, `reset` (removes volumes), `smoke-test`,
+Targets: `up`, `down`, `reset` (removes volumes), `smoke-test`,
 `logs`, `sql-polaris`, `sql-nessie`, `sql-rest`, `lint`, `scenarios`.
+There is no `up-baseline`: the user adds `baseline` to `COMPOSE_PROFILES`
+(section 5.0; deviation in `NOTES.md`).
 
 ## 9. Documentation
 
@@ -282,6 +330,7 @@ Targets: `up`, `up-baseline`, `down`, `reset` (removes volumes), `smoke-test`,
 ## 11. Completion criteria
 
 As in requirement section 10: `make up` starts cleanly on a fresh VM;
-`make smoke-test` passes on `polaris` and `nessie`; all scenario notebooks run
+`make smoke-test` passes on each catalog that is on, run at least once with
+`polaris` on and once with `nessie` on; all scenario notebooks run
 end to end; no credential in git; `VERSIONS.md`, `NOTES.md`, `EVALUATION.md`
 are filled; `aws/teardown.sh` removes every resource `setup.sh` created.

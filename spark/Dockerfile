@@ -48,7 +48,9 @@ RUN groupmod -g "$LAB_UID" spark \
  && mkdir -p /workspace /opt/spark/conf \
  && chown spark:spark /workspace /opt/spark/conf "$SPARK_HOME/work-dir"
 
-COPY --chown=spark:spark conf/spark-defaults.conf /opt/spark/conf/spark-defaults.conf
+# Configuration templates; the entrypoint renders /opt/spark/conf/spark-defaults.conf at start.
+COPY conf/ /opt/spark/conf-templates/
+COPY render.sh /usr/local/lib/lab/render.sh
 COPY entrypoint.sh /usr/local/bin/lab-entrypoint.sh
 
 USER spark

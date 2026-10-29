@@ -65,6 +65,28 @@ Each entry: what the requirement says, what the lab does, and why.
   in the readiness check, but it reports UP without an S3 call. The readiness check still
   covers the database connection. `tests/catalog-smoke.sh nessie` checks the S3 access.
 
+### D11 — The catalogs are optional
+- Requirement (sections 5.1 and 7): the stack has the services `polaris` and `nessie`, and the
+  Makefile has the target `up-baseline`.
+- Lab: each catalog is a Compose profile (`polaris`, `nessie`, later `baseline`). The catalogs
+  are off by default. `COMPOSE_PROFILES` in `.env` selects them. There is no `up-baseline`: add
+  `baseline` to `COMPOSE_PROFILES`.
+- Why: user decision (2026-10-29). The user chooses the catalog for each test. The catalogs do
+  not have to run together. The requirements were changed to match.
+
+### D12 — `polaris-bootstrap` is required
+- Spec (section 5): add `polaris-bootstrap` only if the Polaris docs require it.
+- Lab: Polaris 1.8.0 with `relational-jdbc` does not create its tables. The admin tool creates
+  them and the root principal. A second run skips, so the job runs on every `make up`.
+- The job reads the root credentials from a private file (`bootstrap -f`), not from the command
+  line: the image entrypoint (`run-java.sh`) writes the full command line to the log.
+
+### D13 — `polaris-setup` reads JSON with `sed`
+- Requirement (section 5.1): the setup image has `curl` and `jq`.
+- Lab: the pinned image `alpine/curl` has no `jq`. The script is POSIX `sh` and reads the few
+  JSON fields it needs with `sed`.
+- Why: `apk add jq` at every start needs network access and installs an unpinned version.
+
 ## Findings
 
 ### F1 — Nessie S3 credentials (Nessie 0.109.0, checked 2026-10-28)
@@ -95,10 +117,30 @@ Each entry: what the requirement says, what the lab does, and why.
   user reaches them through an SSH or SSM tunnel. Scenario 7 documents the Nessie
   authorization model.
 
+### F3 — Polaris purge (Polaris 1.8.0, checked 2026-10-29)
+- The catalog property `polaris.config.drop-with-purge.enabled` (default false) controls the
+  server-side purge: a REST `DELETE ...?purgeRequested=true` gets HTTP 403 when it is false.
+- Spark `DROP TABLE ... PURGE` does not use the server-side purge. Spark deletes the files
+  itself, with the S3 credentials that Polaris vends. It works also when the property is false.
+- Lab: the property stays false. `tests/catalog-smoke.sh polaris` drops its table with
+  `DROP TABLE ... PURGE` and fails when a file is left under `polaris/`. The VM role cannot
+  delete under `polaris/`: a left file must be removed from CloudShell.
+
+### F4 — Where the Polaris secrets are
+- The root client secret is in `.env` and in the environment of the one-shot containers
+  `polaris-bootstrap` and `polaris-setup` (`docker inspect` shows it). It is not in a log or
+  on a command line; `tests/polaris-service.sh` checks the bootstrap log.
+- The `spark_user` credentials are in `secrets/spark_user.env` (git-ignored, mode 600). The
+  Spark entrypoint reads them without exporting them and writes them into
+  `/opt/spark/conf/spark-defaults.conf` (mode 600). `spark.redaction.regex` hides them in the
+  Spark UI.
+- The bootstrap root file `/tmp/root.yaml` (mode 600) stays in the filesystem of the exited
+  `polaris-bootstrap` container until `make down` removes it.
+- Accepted for a single-user lab VM, where Docker access already gives root access.
+
 ## Open investigations
 
 Filled in during phases 2-4.
 
-- Polaris `relational-jdbc` bootstrap (admin tool job).
 - Polaris credential vending against S3-compatible on-premise storage (`stsUnavailable`, `stsEndpoint`).
 - `apache/iceberg-rest-fixture`: no tag matches Iceberg 1.11; the lab uses 1.10.1.
