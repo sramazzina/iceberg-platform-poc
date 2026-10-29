@@ -58,6 +58,67 @@ services:
       timeout: 5s
       retries: 30
 
+  polaris-bootstrap:
+    image: ${POLARIS_ADMIN_TOOL_IMAGE}
+    profiles: [polaris]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POLARIS_PERSISTENCE_TYPE: relational-jdbc
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/polaris
+      QUARKUS_DATASOURCE_USERNAME: polaris
+      QUARKUS_DATASOURCE_PASSWORD: ${POLARIS_DB_PASSWORD}
+    # Creates the Polaris tables in polaris_schema and the root principal. A second run skips.
+    command: ["bootstrap", "-r", "POLARIS", "-c", "POLARIS,${POLARIS_ROOT_CLIENT_ID},${POLARIS_ROOT_CLIENT_SECRET}"]
+
+  polaris:
+    image: ${POLARIS_IMAGE}
+    profiles: [polaris]
+    depends_on:
+      polaris-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      POLARIS_PERSISTENCE_TYPE: relational-jdbc
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/polaris
+      QUARKUS_DATASOURCE_USERNAME: polaris
+      QUARKUS_DATASOURCE_PASSWORD: ${POLARIS_DB_PASSWORD}
+      # Polaris calls STS with the AWS default credential chain (VM instance profile) and
+      # assumes polaris-s3-access to vend S3 credentials to Spark.
+      AWS_REGION: ${AWS_REGION}
+      JAVA_OPTS_APPEND: -Xmx384m -XX:MaxDirectMemorySize=128m
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:8181:8181"
+      - "127.0.0.1:8182:8182"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8182/q/health/ready >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  polaris-setup:
+    image: ${POLARIS_SETUP_IMAGE}
+    profiles: [polaris]
+    depends_on:
+      polaris:
+        condition: service_healthy
+    # The host UID, so that the spark container can read the credentials file.
+    user: "${LAB_UID:-1000}"
+    entrypoint: ["/bin/sh", "/setup/setup.sh"]
+    environment:
+      POLARIS_ROOT_CLIENT_ID: ${POLARIS_ROOT_CLIENT_ID}
+      POLARIS_ROOT_CLIENT_SECRET: ${POLARIS_ROOT_CLIENT_SECRET}
+      POLARIS_ROLE_ARN: ${POLARIS_ROLE_ARN}
+      POLARIS_EXTERNAL_ID: ${POLARIS_EXTERNAL_ID}
+      S3_BUCKET: ${S3_BUCKET}
+      AWS_REGION: ${AWS_REGION}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_PATH_STYLE_ACCESS: ${S3_PATH_STYLE_ACCESS:-false}
+    volumes:
+      - ./polaris/setup:/setup:ro
+      - ./secrets:/secrets
+
   spark:
     build:
       context: ./spark
@@ -75,6 +136,9 @@ services:
       # required: false lets spark start when the catalog is off.
       nessie:
         condition: service_healthy
+        required: false
+      polaris-setup:
+        condition: service_completed_successfully
         required: false
     environment:
       S3_BUCKET: ${S3_BUCKET}

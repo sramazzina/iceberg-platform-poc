@@ -16,6 +16,7 @@ running() { docker compose ps --status running --services 2>/dev/null | sort | p
 echo "catalog selection"
 assert_eq "$(services '')" "postgres,spark" "no catalog when COMPOSE_PROFILES is empty"
 assert_eq "$(services nessie)" "nessie,postgres,spark" "COMPOSE_PROFILES=nessie adds nessie"
+assert_eq "$(services polaris)" "polaris,polaris-bootstrap,polaris-setup,postgres,spark" "COMPOSE_PROFILES=polaris adds the polaris services"
 assert_contains "$(command cat .env.example)" $'\nCOMPOSE_PROFILES=\n' ".env.example leaves COMPOSE_PROFILES empty"
 
 COMPOSE_PROFILES= make up >"$log" 2>&1 || { fail "make up with no catalog"; tail -n 20 "$log"; }
