@@ -20,6 +20,7 @@ echo "spark configuration"
 none=$(conf "")
 assert_contains "$none" "IcebergSparkSessionExtensions" "common part with no catalog"
 assert_not_contains "$none" "spark.sql.catalog.nessie" "no nessie block with no catalog"
+assert_not_contains "$none" "spark.sql.catalog.rest" "no rest block with no catalog"
 
 nessie=$(conf nessie)
 assert_contains "$nessie" "spark.sql.catalog.nessie.uri    http://nessie:19120/iceberg/main" "nessie block with nessie"
@@ -33,5 +34,9 @@ assert_contains "$(conf_err no-such-catalog)" "no Spark catalog for profile 'no-
 polaris=$(conf polaris)
 assert_contains "$polaris" "spark.sql.catalog.polaris.uri                                 http://polaris:8181/api/catalog" "polaris block with polaris"
 assert_not_contains "$polaris" '${POLARIS_SPARK_CLIENT' "polaris credentials rendered"
+
+rest=$(conf baseline)
+assert_contains "$rest" "spark.sql.catalog.rest.uri    http://rest-fixture:8181" "rest block with baseline"
+assert_not_contains "$(conf nessie)" "spark.sql.catalog.rest" "no rest block with nessie only"
 
 finish
