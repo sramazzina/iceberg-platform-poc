@@ -140,6 +140,21 @@ notes.
 
 Every version is pinned in `.env`. The tag `latest` is never used.
 
+### 5.0 Catalog selection (added 2026-10-29)
+
+- The catalogs are off by default. Each catalog is a Compose profile:
+  `polaris` (`polaris-bootstrap`, `polaris`, `polaris-setup`), `nessie` (`nessie`)
+  and `baseline` (`rest-fixture`). `postgres` and `spark` have no profile, so they
+  always start.
+- The user chooses the catalogs with `COMPOSE_PROFILES` in `.env`, for example
+  `COMPOSE_PROFILES=nessie`. Compose reads this variable itself, so `make up` and a
+  plain `docker compose up` give the same result. `.env.example` leaves it empty.
+- The lab must contain every catalog, but the catalogs do not have to run together.
+  The tests and the scenarios need one catalog at a time.
+- `make up` also stops the services of the catalogs that are not in
+  `COMPOSE_PROFILES`, so the running services always match `.env`.
+- Stopping a catalog keeps its data: its Postgres database and its S3 prefix stay.
+
 ### 5.1 `polaris-setup`
 
 1. Get a token as `root`.
@@ -170,17 +185,18 @@ Every version is pinned in `.env`. The tag `latest` is never used.
 - `spark/conf/spark-defaults.conf` is a template with `${VAR}` placeholders.
   `entrypoint.sh` renders it with a pure-bash placeholder substitution (same
   approach as `aws/lib.sh`) from the environment and from
-  `secrets/spark_user.env`, then starts JupyterLab.
+  `secrets/spark_user.env`, then starts JupyterLab. It renders the block of a
+  catalog only when the catalog profile is in `COMPOSE_PROFILES` (section 5.0).
 - `spark.sql.extensions` = `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`.
 - Catalog `polaris`: `type=rest`, Polaris catalog API URI, `warehouse=lab_catalog`,
   OAuth2 client credentials of `spark_user` (never `root`), scope
   `PRINCIPAL_ROLE:ALL`, header `X-Iceberg-Access-Delegation=vended-credentials`.
 - Catalog `nessie`: `type=rest`, Nessie Iceberg REST URI with the `main` branch
   as prefix/reference.
-- Catalog `rest`: rendered only when `REST_CATALOG_ENABLED=true`
-  (`make up-baseline` sets it).
+- Catalog `rest`: rendered only when the `baseline` profile is active.
 - `depends_on`: `polaris-setup` with `service_completed_successfully`, and
-  `nessie` healthy.
+  `nessie` healthy, both with `required: false`, so `spark` starts also when a
+  catalog is off.
 
 ### 5.3 S3 access model
 
@@ -226,8 +242,8 @@ the `spark` container.
   table, insert rows, read them, check that the files are under the expected
   prefix (`aws s3 ls`), run `docker compose restart`, check that the table and
   rows still exist.
-- `make smoke-test`: `s3-access`, then `catalog-smoke` on `polaris` and
-  `nessie`, and on `rest` when the `baseline` profile is running.
+- `make smoke-test`: `s3-access`, then `catalog-smoke` on each catalog in
+  `COMPOSE_PROFILES`. With no catalog on, it runs `s3-access` only and says so.
 - `make lint`: `bash -n` on scripts, `docker compose config`, `jq` validation of
   JSON files. No shellcheck (GPLv3, see CLAUDE.md rule 5).
 - No GitHub Actions CI: the tests need real AWS.
@@ -236,8 +252,9 @@ the `spark` container.
 
 - One notebook per scenario: `scenarios/01-basic-cycle.ipynb` …
   `scenarios/11-second-client.ipynb`, as listed in requirement phase 5.
-- `scenarios/lab.py`: runs the same SQL on `polaris` and `nessie` and shows
-  results side by side (pandas), with success or error per catalog.
+- `scenarios/lab.py`: runs the SQL of a scenario on the catalog that is on and
+  shows the result (pandas), with success or error. To compare the catalogs, the
+  user runs the same notebook once per catalog.
 - Each notebook is idempotent: it drops the objects it creates at the start.
 - Scenario 6 uses the native Nessie REST API (`requests`).
 - Scenario 7 creates the read-only principal `reader_user` in Polaris and shows
@@ -247,8 +264,10 @@ the `spark` container.
 
 ## 8. Makefile
 
-Targets: `up`, `up-baseline`, `down`, `reset` (removes volumes), `smoke-test`,
+Targets: `up`, `down`, `reset` (removes volumes), `smoke-test`,
 `logs`, `sql-polaris`, `sql-nessie`, `sql-rest`, `lint`, `scenarios`.
+There is no `up-baseline`: the user adds `baseline` to `COMPOSE_PROFILES`
+(section 5.0; deviation in `NOTES.md`).
 
 ## 9. Documentation
 
@@ -282,6 +301,7 @@ Targets: `up`, `up-baseline`, `down`, `reset` (removes volumes), `smoke-test`,
 ## 11. Completion criteria
 
 As in requirement section 10: `make up` starts cleanly on a fresh VM;
-`make smoke-test` passes on `polaris` and `nessie`; all scenario notebooks run
+`make smoke-test` passes on each catalog that is on, run at least once with
+`polaris` on and once with `nessie` on; all scenario notebooks run
 end to end; no credential in git; `VERSIONS.md`, `NOTES.md`, `EVALUATION.md`
 are filled; `aws/teardown.sh` removes every resource `setup.sh` created.

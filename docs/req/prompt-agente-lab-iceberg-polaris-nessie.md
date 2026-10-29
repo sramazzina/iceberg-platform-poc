@@ -49,8 +49,10 @@ L'utente deve poter eseguire gli stessi scenari di test sui due cataloghi e conf
 | `polaris` | `apache/polaris` (versione fissata) | Catalogo Iceberg REST con RBAC e credential vending. Persistenza `relational-jdbc` su Postgres. |
 | `polaris-setup` | immagine leggera con `curl` e `jq` | Job one-shot. Crea il catalogo Polaris, i principal, i ruoli e i grant. Deve essere idempotente. |
 | `nessie` | `ghcr.io/projectnessie/nessie` (versione fissata) | Catalogo con endpoint Iceberg REST (`/iceberg`) e API nativa Nessie. Version store JDBC su Postgres. |
-| `spark` | immagine costruita da te (`spark/Dockerfile`) | Spark con Iceberg runtime, Iceberg AWS bundle, Jupyter. Tre cataloghi configurati in `spark-defaults.conf`. |
+| `spark` | immagine costruita da te (`spark/Dockerfile`) | Spark con Iceberg runtime, Iceberg AWS bundle, Jupyter. In `spark-defaults.conf` è configurato ogni catalogo acceso. |
 | `rest-fixture` (profilo `baseline`) | `apache/iceberg-rest-fixture` | Catalogo di riferimento, come nel Quickstart. Opzionale. |
+
+I cataloghi (`polaris`, `nessie`, `rest-fixture`) sono spenti di default. L'utente sceglie quali accendere con la variabile `COMPOSE_PROFILES` in `.env` (profili Compose `polaris`, `nessie`, `baseline`). Il laboratorio deve contenere tutti i cataloghi, ma non deve farli girare insieme: per i test basta un catalogo acceso alla volta. Spegnere un catalogo non cancella i suoi dati.
 
 ### 5.2 Immagine Spark
 
@@ -164,7 +166,7 @@ Il `Makefile` deve avere almeno questi target: `up`, `up-baseline`, `down`, `res
 
 ### Fase 5 — Scenari di confronto
 
-Scrivi un notebook per ogni scenario. Ogni notebook esegue lo scenario su `polaris` e su `nessie` e mostra i risultati affiancati.
+Scrivi un notebook per ogni scenario. Ogni notebook esegue lo scenario sul catalogo acceso (`polaris` o `nessie`). Per confrontare i cataloghi, l'utente esegue lo stesso notebook una volta per ogni catalogo.
 
 | N. | Scenario | Cosa verificare |
 |---|---|---|
@@ -213,7 +215,7 @@ Il README contiene:
 Il lavoro è completo quando:
 
 1. `make up` avvia lo stack senza errori su una VM nuova.
-2. `make smoke-test` passa su `polaris` e su `nessie`.
+2. `make smoke-test` passa su ogni catalogo acceso. Il test è eseguito almeno una volta con `polaris` acceso e una volta con `nessie` acceso.
 3. Tutti i notebook degli scenari girano dall'inizio alla fine.
 4. Nessuna credenziale è presente nel repository.
 5. `VERSIONS.md`, `NOTES.md` ed `EVALUATION.md` sono compilati.
