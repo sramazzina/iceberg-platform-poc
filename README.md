@@ -21,7 +21,8 @@ The catalogs are off by default. To choose them:
 3. Run `make smoke-test`. It tests the base stack and each catalog that is on.
 4. Run `make down` when you stop working.
 
-Open a Spark SQL shell on a catalog with `make sql-polaris` or `make sql-nessie`.
+Open a Spark SQL shell on a catalog with `make sql-polaris` or `make sql-nessie`. The
+catalog must be on: otherwise Spark answers "catalog not found".
 
 If `polaris-setup` resets the `spark_user` credentials (its log says `credentials reset`),
 run `docker compose restart spark`: a running `spark` container keeps the old credentials.

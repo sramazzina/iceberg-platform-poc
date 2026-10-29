@@ -134,6 +134,8 @@ Each entry: what the requirement says, what the lab does, and why.
   Spark entrypoint reads them without exporting them and writes them into
   `/opt/spark/conf/spark-defaults.conf` (mode 600). `spark.redaction.regex` hides them in the
   Spark UI.
+- The bootstrap root file `/tmp/root.yaml` (mode 600) stays in the filesystem of the exited
+  `polaris-bootstrap` container until `make down` removes it.
 - Accepted for a single-user lab VM, where Docker access already gives root access.
 
 ## Open investigations

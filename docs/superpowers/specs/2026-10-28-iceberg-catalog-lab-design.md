@@ -131,7 +131,7 @@ notes.
 | Service | Image | Role |
 |---|---|---|
 | `postgres` | `postgres:<pinned>` | One instance. Init script creates databases `polaris` and `nessie`, each with its own user. Persistent volume. Not published on the host. |
-| `polaris-bootstrap` | `apache/polaris-admin-tool:<pinned>` | One-shot realm bootstrap for `relational-jdbc` (`bootstrap -r POLARIS -c POLARIS,<root id>,<root secret>`). Required: the Polaris 1.8.0 server does not create its tables. Idempotent: a second run skips. Noted in `NOTES.md`. |
+| `polaris-bootstrap` | `apache/polaris-admin-tool:<pinned>` | One-shot realm bootstrap for `relational-jdbc` (`bootstrap -f <private file>`: the root id and secret are in a file, not on the command line, because the image entrypoint logs the command line). Required: the Polaris 1.8.0 server does not create its tables. Idempotent: a second run skips. Noted in `NOTES.md`. |
 | `polaris` | `apache/polaris:<pinned>` | Iceberg REST catalog, RBAC, credential vending. Persistence `relational-jdbc`. Root credentials from `.env`. |
 | `polaris-setup` | `alpine/curl:<pinned>` (`sh`, `curl`, `sed`; no `jq`) | One-shot, idempotent. See 5.1. |
 | `nessie` | `ghcr.io/projectnessie/nessie:<pinned>` | JDBC version store on database `nessie`. Iceberg REST at `/iceberg`. Warehouse `s3://${S3_BUCKET}/nessie/`. S3 access server-side with the AWS default credential chain (IMDS). No authentication. |
@@ -147,8 +147,9 @@ Every version is pinned in `.env`. The tag `latest` is never used.
   and `baseline` (`rest-fixture`). `postgres` and `spark` have no profile, so they
   always start.
 - The user chooses the catalogs with `COMPOSE_PROFILES` in `.env`, for example
-  `COMPOSE_PROFILES=nessie`. Compose reads this variable itself, so `make up` and a
-  plain `docker compose up` give the same result. `.env.example` leaves it empty.
+  `COMPOSE_PROFILES=nessie`. Compose reads this variable itself. Use `make up`: it
+  also creates `secrets/` as the host user and stops the catalogs that are off.
+  `.env.example` leaves it empty.
 - The lab must contain every catalog, but the catalogs do not have to run together.
   The tests and the scenarios need one catalog at a time.
 - `make up` also stops the services of the catalogs that are not in
@@ -183,7 +184,8 @@ container can read the file it writes.
    secret only once, in the answer to the create call. When the principal exists
    and the file is missing, reset the principal credentials
    (`POST /principals/spark_user/reset`, as `root`) and write the file again.
-   When the principal exists and the file exists, keep the file.
+   When the principal exists and the file exists, keep the file only if a token
+   call with its credentials works; otherwise reset the credentials.
 
 ### 5.2 Spark image
 
@@ -197,7 +199,8 @@ container can read the file it writes.
   against (user decision; see `VERSIONS.md`).
 - Install AWS CLI v2 (scenario 2 uses `aws s3 ls`).
 - The Spark configuration has a common part (`spark/conf/spark-defaults.conf`) and
-  one template per catalog (`spark/conf/catalogs/<catalog>.conf`).
+  one template per catalog profile (`spark/conf/catalogs/<profile>.conf`). The
+  profile `baseline` renders the Spark catalog `rest` (`catalogs/baseline.conf`).
 - The templates have `${VAR}` placeholders. At container start, `entrypoint.sh`
   joins the common part and the template of each catalog whose profile is in
   `COMPOSE_PROFILES` (section 5.0). It replaces the placeholders with a pure-bash
@@ -259,7 +262,8 @@ the `spark` container.
   bucket root, so the test uses an allowed prefix (noted in `NOTES.md`).
 - `tests/catalog-smoke.sh <catalog>` (phases 2-4): create a namespace and a
   table, insert rows, read them, check that the files are under the expected
-  prefix (`aws s3 ls`), run `docker compose restart`, check that the table and
+  prefix (`aws s3 ls`), stop and start the stack (`docker compose stop`, then
+  `docker compose up -d --wait`, in dependency order), check that the table and
   rows still exist.
 - `tests/polaris-service.sh` (phase 2): Polaris is ready, `lab_catalog` exists
   with its base location, and the Spark catalog uses `spark_user`, not `root`.

@@ -25,10 +25,10 @@ nessie=$(conf nessie)
 assert_contains "$nessie" "spark.sql.catalog.nessie.uri    http://nessie:19120/iceberg/main" "nessie block with nessie"
 assert_contains "$nessie" "IcebergSparkSessionExtensions" "common part with nessie"
 
-unknown=$(conf baseline)
+unknown=$(conf no-such-catalog)
 assert_not_contains "$unknown" "command failed" "a profile without a template is skipped"
 assert_not_contains "$unknown" "no Spark catalog" "the warning is not in the rendered file"
-assert_contains "$(conf_err baseline)" "no Spark catalog for profile 'baseline'" "a profile without a template gives a warning on stderr"
+assert_contains "$(conf_err no-such-catalog)" "no Spark catalog for profile 'no-such-catalog'" "a profile without a template gives a warning on stderr"
 
 polaris=$(conf polaris)
 assert_contains "$polaris" "spark.sql.catalog.polaris.uri                                 http://polaris:8181/api/catalog" "polaris block with polaris"

@@ -14,8 +14,12 @@ IFS=', ' read -ra list <<<"${LAB_CATALOGS:-}"
 # The Polaris template needs the spark_user credentials written by polaris-setup.
 # Source them only when Polaris is on; do not export them.
 for catalog in "${list[@]}"; do
-  if [[ $catalog == polaris && -f $secrets ]]; then
-    source "$secrets"
+  if [[ $catalog == polaris ]]; then
+    if [[ -f $secrets ]]; then
+      source "$secrets"
+    else
+      echo "lab-entrypoint: polaris is selected but secrets/spark_user.env is missing: run make up (polaris-setup writes it)" >&2
+    fi
   fi
 done
 

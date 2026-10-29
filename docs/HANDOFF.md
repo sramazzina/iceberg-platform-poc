@@ -79,6 +79,9 @@ Only then start Task 7.
 - `spark` waits for a healthy `nessie`, so `make up` always starts Nessie.
 - Nessie publishes its management port on `127.0.0.1:9000`. A local MinIO (on-premise) also
   uses port 9000: map one of them to another host port.
+- Phase 4: the profile `baseline` renders the Spark catalog `rest` from
+  `spark/conf/catalogs/baseline.conf`, and `tests/smoke-test.sh` needs a map from the profile
+  to the service (`rest-fixture`) and the catalog (`rest`).
 
 ## Kick-off prompt for the VM session
 

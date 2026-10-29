@@ -1047,3 +1047,41 @@ git commit -m "docs: record the Polaris findings and the optional catalogs"
   `S3_ENDPOINT` is set, and Polaris may need `stsEndpoint` or `stsUnavailable`. Not tested.
 - Static S3 keys for Polaris (on-premise, no IMDS).
 - Scenario 7 (read-only principal `reader_user`).
+
+## Execution notes (after review)
+
+The code blocks above are the plan as written. The reviews of each task changed the code.
+The code in the repository is the reference; read it, not this plan, before Phase 4.
+
+- Task 13 (`4b44eed`): `make up` stops with `|| exit 1` when `docker compose config` fails.
+  `tests/catalog-selection.sh` restores the `.env` selection with a trap and prints the
+  `make up` log on failure.
+- Task 14 (`e263105`): the entrypoint splits `LAB_CATALOGS` with `IFS=', ' read -ra` (no
+  globbing), sources `secrets/spark_user.env` only when `polaris` is selected and without
+  `set -a`, writes the rendered file with mode 600 (`umask 077`), and warns on `*` and on a
+  profile without a template. The common configuration sets `spark.redaction.regex` with
+  `credential`. `tests/spark-config.sh` checks stdout and stderr apart (`conf_err`).
+- Task 15 (`865efef`):
+  - `polaris-bootstrap` runs `bootstrap -f /tmp/root.yaml` through `/bin/sh -c`, with the root
+    credentials in `LAB_ROOT_ID`/`LAB_ROOT_SECRET`: the image entrypoint logs its command line.
+  - `polaris` gets the optional static keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+  - `setup.sh` retries the root token call, removes its temporary files with a trap, checks the
+    required values and `S3_PATH_STYLE_ACCESS`, keeps a credentials file only when a token call
+    with it works, prints a restart hint after a reset, and prints "set" for PUT calls.
+  - `tests/polaris-service.sh` keeps the caller's `COMPOSE_PROFILES`, checks that the bootstrap
+    log does not show the root secret, checks the `spark_role` assignment, and compares the
+    Spark client id with the id in the credentials file.
+  - `.env.example` lists the characters that the root id and secret must not contain.
+- Task 16 (`b539abe`, `09b1cbf`): `tests/catalog-smoke.sh` keeps the caller's
+  `COMPOSE_PROFILES`, restarts the stack with `docker compose stop` and
+  `docker compose up -d --wait` (dependency order), and fails when a Polaris table cannot be
+  purged or leaves files.
+- Task 17 (`a09c23c`): D12 records the bootstrap file. F4 lists where the Polaris secrets are.
+- Final review: `setup.sh` fails with a hint when `secrets/` is not writable (Docker creates a
+  missing bind-mount folder as root); the entrypoint warns when `polaris` is selected and the
+  credentials file is missing; `tests/spark-config.sh` uses the fake profile `no-such-catalog`,
+  because Phase 4 adds `catalogs/baseline.conf`.
+- Phase 4 note: `tests/smoke-test.sh` assumes that the profile, the service and the Spark
+  catalog have the same name. For `baseline` they differ (service `rest-fixture`, catalog
+  `rest`): the Phase 4 plan needs a map there.
+

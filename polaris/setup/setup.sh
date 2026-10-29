@@ -15,6 +15,8 @@ fail() { echo "polaris-setup: $*" >&2; exit 1; }
 trap 'rm -f "$ANSWER" "$OUT.new"' EXIT
 
 : "${POLARIS_ROLE_ARN:?}" "${POLARIS_EXTERNAL_ID:?}" "${S3_BUCKET:?}" "${AWS_REGION:?}"
+# Docker creates a missing ./secrets as root; `make up` creates it as the host user.
+[ -w /secrets ] || fail "secrets/ is not writable by UID $(id -u): run 'sudo chown $(id -u) secrets' on the host, then make up"
 case ${S3_PATH_STYLE_ACCESS:-false} in true|false) ;; *) fail "S3_PATH_STYLE_ACCESS must be true or false" ;; esac
 
 # field NAME: prints the string value of the JSON field NAME in $ANSWER.
