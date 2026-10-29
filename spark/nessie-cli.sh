@@ -6,7 +6,7 @@ set -euo pipefail
 uri=(-u http://nessie:19120/api/v2)
 for arg in "$@"; do
   case $arg in
-    -u | --uri | -u=* | --uri=*) uri=() ;;
+    -u* | --uri | --uri=*) uri=() ;;
   esac
 done
 

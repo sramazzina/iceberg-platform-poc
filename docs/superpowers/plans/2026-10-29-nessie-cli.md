@@ -320,3 +320,16 @@ git commit -m "docs(nessie): document the Nessie CLI"
 - Nessie CLI in its own container (`ghcr.io/projectnessie/nessie-cli`): not chosen.
 - Nessie authentication for the CLI (Nessie runs without authentication, `NOTES.md` F2).
 - Phase 5 scenarios that use the CLI.
+
+## Execution notes (after review)
+
+The code blocks above are the plan as written. The code in the repository is the reference.
+
+- Task 21 (`20fb262`) and Task 22 (`0c54d5f`): as planned. The README examples were run against
+  the live Nessie; `MERGE dev INTO main` on an empty branch prints "did not change target branch".
+- Final review: the wrapper also recognizes `-u` attached to its value (`-u*`), because a second
+  `-u` makes the CLI fail ("expected only one match"). `tests/nessie-service.sh` checks an
+  explicit `-u`.
+- Not changed: the jar layer comes after the `pip install` layer in `spark/Dockerfile`, so a
+  change to `requirements.txt` downloads the jar again (cache only). Clustered short options
+  with `u` (for example `-qSu <uri>`) are not recognized by the wrapper: write `-u <uri>`.
