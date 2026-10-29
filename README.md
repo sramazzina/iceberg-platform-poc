@@ -245,6 +245,7 @@ Session Manager plugin must be installed on your machine.
 | Spark says `catalog not found` | The catalog is off, or `COMPOSE_PROFILES` has a typo (the spark log says `no Spark catalog for profile ...`) | Check `COMPOSE_PROFILES` in `.env`, then run `make up` |
 | HTTP 401 from Polaris in a long Spark session | The Polaris token of the session is no longer valid. Tokens last one hour; the Iceberg client normally refreshes them, but a refresh can fail, for example after a restart of Polaris | Start a new Spark session (`make sql-polaris`, or restart the notebook kernel) |
 | `make smoke-test` fails on `catalog-smoke.sh polaris` with `files left under ...` | A Polaris table was dropped without its files | Delete the listed files from CloudShell (`aws s3 rm`); the VM role cannot delete under `polaris/` |
+| `make up` warns `The "NESSIE_CLI_VERSION" variable is not set`, and the Spark build fails on the Nessie CLI download (HTTP 404) | `.env` was made before the Nessie CLI was added, so it has no `NESSIE_CLI_VERSION` and `NESSIE_CLI_SHA1` | Copy the two lines `NESSIE_CLI_VERSION=...` and `NESSIE_CLI_SHA1=...` from `.env.example` to `.env`, then run `make up` |
 | A service is not healthy after `make up` | A service did not start | Run `docker compose ps -a`, then `docker compose logs <service>` |
 
 ## On-premise S3 storage (not verified)
