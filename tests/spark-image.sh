@@ -25,6 +25,10 @@ ext=$(run bash -c "spark-sql -S \
   -e \"CREATE TABLE t.db.x (id INT) USING iceberg; ALTER TABLE t.db.x WRITE ORDERED BY id; SELECT 'extensions=ok';\"")
 assert_contains "$ext" "extensions=ok" "Iceberg extensions configured"
 assert_not_contains "$ext" "configure session extensions" "no extension load error"
+assert_not_contains "$jars" "nessie-cli" "Nessie CLI jar not on the Spark classpath"
+assert_eq "$(run nessie --version | tail -n1)" "$NESSIE_CLI_VERSION" "Nessie CLI pinned version"
+assert_eq "$NESSIE_CLI_VERSION" "${NESSIE_IMAGE##*:}" "Nessie CLI version equals the Nessie server version"
+
 uid=$(run id -u)
 assert_eq "$(tail -n1 <<<"$uid")" "$LAB_UID" "runs as LAB_UID"
 
