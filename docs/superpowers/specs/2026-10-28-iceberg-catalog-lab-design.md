@@ -260,8 +260,10 @@ Facts from the image `apache/iceberg-rest-fixture:1.10.1` (inspected on
 healthcheck on `/v1/config`, it listens on 8181, and its default catalog is
 SQLite on `/tmp/iceberg_catalog.db` (lost at each container restart).
 
-- Persistence: `CATALOG_URI=jdbc:sqlite:/home/iceberg/data/catalog.db` on a
-  named volume `rest-fixture-data` mounted at `/home/iceberg/data`. A named
+- Persistence: `CATALOG_URI=jdbc:sqlite:/home/iceberg/catalog.db` on a
+  named volume `rest-fixture-data` mounted at `/home/iceberg` (the home of the
+  user `iceberg`; a subfolder does not exist in the image, so Docker would create
+  it as root). A named
   volume on a directory that the image owns gets the same owner, so the user
   `iceberg` can write it. Stopping the profile keeps the catalog;
   `make reset` deletes it.
