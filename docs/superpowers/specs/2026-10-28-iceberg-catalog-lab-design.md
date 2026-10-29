@@ -216,9 +216,10 @@ container can read the file it writes.
 - Catalog `nessie`: `type=rest`, Nessie Iceberg REST URI with the `main` branch
   as prefix/reference.
 - Catalog `rest`: rendered only when the `baseline` profile is active.
-- `depends_on`: `polaris-setup` with `service_completed_successfully`, and
-  `nessie` healthy, both with `required: false`, so `spark` starts also when a
-  catalog is off.
+  `type=rest`, URI `http://rest-fixture:8181`.
+- `depends_on`: `polaris-setup` with `service_completed_successfully`,
+  `nessie` healthy and `rest-fixture` healthy, all with `required: false`, so
+  `spark` starts also when a catalog is off.
 
 ### 5.3 S3 access model
 
@@ -235,7 +236,9 @@ The result goes into `NOTES.md`. Default configuration: no vending.
 
 - Host ports bound to `127.0.0.1` only: JupyterLab 8888, Spark UI 4040,
   Polaris 8181 (API) and 8182 (management), Nessie 19120 and its management
-  port, rest-fixture (profile `baseline`).
+  port, rest-fixture (profile `baseline`) on host port 8183. The fixture listens
+  on 8181 in its container, the same port as Polaris on the host, so the host
+  port is different: `polaris` and `baseline` can be on together.
 - Access from the user's machine: SSH tunnel (primary) and SSM port
   forwarding (alternative). Both are documented in the README.
 - Security group: port 22 from the user's IP only, or no inbound port with SSM.
@@ -249,6 +252,28 @@ on AWS, required on-premise where there is no IMDS). Every service reads only
 these variables. Polaris credential vending against MinIO/RustFS (STS endpoint
 or vending disabled) is checked in the Polaris docs; the procedure goes into
 the README and the findings into `NOTES.md`.
+
+### 5.6 `rest-fixture` (Phase 4, added 2026-10-29)
+
+Facts from the image `apache/iceberg-rest-fixture:1.10.1` (inspected on
+2026-10-29): it runs as user `iceberg` (uid 1000), it has `curl` and a
+healthcheck on `/v1/config`, it listens on 8181, and its default catalog is
+SQLite on `/tmp/iceberg_catalog.db` (lost when the container is recreated).
+
+- Persistence: `CATALOG_URI=jdbc:sqlite:/home/iceberg/catalog.db` on a
+  named volume `rest-fixture-data` mounted at `/home/iceberg` (the home of the
+  user `iceberg`; a subfolder does not exist in the image, so Docker would create
+  it as root). A named volume on a directory that the image owns gets the same
+  owner, so the user `iceberg` can write it. Stopping the profile keeps the catalog;
+  `make reset` deletes it.
+- Warehouse `s3://${S3_BUCKET}/rest/` with `S3FileIO`. S3 credentials: AWS
+  default credential chain (VM role through IMDSv2), and the optional static
+  keys from `.env`.
+- On-premise S3 endpoint for the fixture: deferred (noted in `NOTES.md`), as
+  for the other deferred on-premise items.
+- No service-specific test: the fixture has no RBAC and no setup step. The
+  healthcheck and `catalog-smoke.sh rest` cover it.
+- Makefile: `make sql-rest`.
 
 ## 6. Tests
 
@@ -271,6 +296,12 @@ the `spark` container.
   deletes the files itself with the credentials vended by Polaris, so the
   Polaris setting `polaris.config.drop-with-purge.enabled` is not needed
   (verified on 2026-10-29). The VM role never deletes under `polaris/`.
+- In `catalog-smoke.sh rest` (phase 4), the cleanup runs `DROP TABLE ... PURGE`
+  and checks that no file is left under the table root. The VM role can delete
+  under `rest/`, so it removes any file that is left.
+- `tests/smoke-test.sh` maps each profile to its service and its Spark catalog:
+  `polaris` → `polaris` → `polaris`, `nessie` → `nessie` → `nessie`,
+  `baseline` → `rest-fixture` → `rest`.
 - `make smoke-test`: `s3-access`, then `catalog-smoke` on each catalog in
   `COMPOSE_PROFILES`. With no catalog on, it runs `s3-access` only and says so.
 - `make lint`: `bash -n` on scripts, `docker compose config`, `jq` validation of

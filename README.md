@@ -10,8 +10,8 @@ The lab is a test environment, not a production environment.
 
 ## Status
 
-Work in progress. Stage 1 (AWS scripts), Phase 1 (Postgres, Spark image), Phase 2 (Polaris)
-and Phase 3 (Nessie) are done. The baseline catalog `rest` (Phase 4), the scenario notebooks
+Work in progress. Stage 1 (AWS scripts), Phase 1 (Postgres, Spark image), Phase 2 (Polaris),
+Phase 3 (Nessie) and Phase 4 (baseline catalog `rest`) are done. The scenario notebooks
 (Phase 5) and the evaluation (Phase 6) are not done yet.
 
 ## What the lab contains
@@ -23,7 +23,7 @@ Each catalog writes to its own S3 prefix.
 |---|---|---|---|
 | `polaris` | Apache Polaris | `s3://${S3_BUCKET}/polaris/` | Vended by Polaris (role `polaris-s3-access`) |
 | `nessie` | Project Nessie (Iceberg REST endpoint) | `s3://${S3_BUCKET}/nessie/` | VM instance profile |
-| `rest` (Phase 4, Compose profile `baseline`) | `apache/iceberg-rest-fixture` | `s3://${S3_BUCKET}/rest/` | VM instance profile |
+| `rest` (Compose profile `baseline`) | `apache/iceberg-rest-fixture` | `s3://${S3_BUCKET}/rest/` | VM instance profile |
 
 ```mermaid
 flowchart LR
@@ -36,9 +36,10 @@ flowchart LR
     pg[(Postgres<br/>polaris, nessie)]
     jupyter -- Iceberg REST --> polaris
     jupyter -- Iceberg REST --> nessie
-    jupyter -. Iceberg REST .-> rest
+    jupyter -- Iceberg REST --> rest
     polaris --> pg
     nessie --> pg
+    rest --> rfv[(SQLite volume)]
   end
   subgraph s3[S3 bucket]
     p[polaris/]
@@ -47,9 +48,10 @@ flowchart LR
   end
   jupyter -- vended credentials --> p
   jupyter -- instance profile --> n
-  jupyter -. instance profile .-> r
+  jupyter -- instance profile --> r
   polaris -- sts:AssumeRole --> p
   nessie -- instance profile --> n
+  rest -- instance profile --> r
 ```
 
 `postgres` and `spark` always run. The catalogs are Compose profiles and are off by default.
@@ -91,8 +93,8 @@ Do these steps once. Steps 1-2 run in CloudShell, the other steps on the VM.
 
 ## Choose the catalogs
 
-1. Set `COMPOSE_PROFILES` in `.env`: `polaris`, `nessie`, or both (`nessie,polaris`, no
-   spaces). Leave it empty for no catalog.
+1. Set `COMPOSE_PROFILES` in `.env`: `polaris`, `nessie`, `baseline` (Spark catalog `rest`),
+   or a list (`nessie,polaris`, no spaces). Leave it empty for no catalog.
 2. Run `make up`. It starts the catalogs in `COMPOSE_PROFILES` and stops the others.
    The data of a stopped catalog stays (Postgres database and S3 prefix).
 3. Run `make smoke-test`. It tests the base stack and each catalog that is on.
@@ -102,8 +104,8 @@ with each catalog.
 
 ## Daily use
 
-- **Spark SQL shell**: `make sql-polaris` or `make sql-nessie`. The catalog must be on:
-  otherwise Spark answers "catalog not found". Example:
+- **Spark SQL shell**: `make sql-polaris`, `make sql-nessie` or `make sql-rest`. The catalog
+  must be on: otherwise Spark answers "catalog not found". Example:
 
   ```sql
   CREATE NAMESPACE IF NOT EXISTS demo;
@@ -127,6 +129,8 @@ with each catalog.
 - **Drop a Polaris table with its files**: `DROP TABLE polaris.<namespace>.<table> PURGE`.
   Without `PURGE`, the files stay under `polaris/`, and the VM role cannot delete them (only
   CloudShell can).
+- **Drop a baseline table with its files**: `DROP TABLE rest.<namespace>.<table> PURGE`.
+  Without `PURGE`, the files stay under `rest/`. The VM role can delete them with `aws s3 rm`.
 - **Logs**: `make logs`.
 
 ## Make targets
@@ -135,17 +139,18 @@ with each catalog.
 |---|---|
 | `make up` | Builds the Spark image if necessary, starts `postgres`, `spark` and the catalogs in `COMPOSE_PROFILES`, stops the other catalogs, and waits until all services are healthy |
 | `make down` | Stops and removes every container, of every catalog. The data stays |
-| `make reset` | Like `make down`, and also **deletes the Postgres volume**: all Polaris and Nessie metadata is lost. The S3 files stay |
+| `make reset` | Like `make down`, and also **deletes the volumes**: all Polaris and Nessie metadata (Postgres) and the baseline catalog (SQLite) are lost. The S3 files stay |
 | `make smoke-test` | Runs the acceptance tests of the base stack and of each catalog that is on |
-| `make sql-polaris`, `make sql-nessie` | Opens a Spark SQL shell on the catalog |
+| `make sql-polaris`, `make sql-nessie`, `make sql-rest` | Opens a Spark SQL shell on the catalog |
 | `make logs` | Shows the logs of the running services |
 | `make lint` | Static checks: script syntax, JSON, Compose file, no secret in tracked files |
 | `make test-aws` | Tests the AWS scripts against a stub AWS CLI (no AWS access) |
 
 ## Access from your machine
 
-The lab publishes its ports on `127.0.0.1` of the VM only. Nessie and the Spark UI have no
-authentication, so do not open these ports in the security group. Use a tunnel instead.
+The lab publishes its ports on `127.0.0.1` of the VM only. Nessie, the baseline catalog and
+the Spark UI have no authentication, so do not open these ports in the security group. Use a
+tunnel instead.
 
 | Service | VM port | Address on your machine |
 |---|---|---|
@@ -155,6 +160,7 @@ authentication, so do not open these ports in the security group. Use a tunnel i
 | Nessie management (health) | 9000 | <http://localhost:9000/q/health/ready> |
 | Polaris API (needs a token) | 8181 | <http://localhost:8181/api/management/v1/catalogs> |
 | Polaris management (health) | 8182 | <http://localhost:8182/q/health/ready> |
+| Baseline REST catalog (no authentication) | 8183 | <http://localhost:8183/v1/config> |
 
 A catalog port answers only when the catalog is on (`COMPOSE_PROFILES`).
 
@@ -172,6 +178,7 @@ A catalog port answers only when the catalog is on (`COMPOSE_PROFILES`).
      -L 9000:127.0.0.1:9000 \
      -L 8181:127.0.0.1:8181 \
      -L 8182:127.0.0.1:8182 \
+     -L 8183:127.0.0.1:8183 \
      admin@<vm-public-ip>
    ```
 
@@ -195,7 +202,7 @@ Session Manager plugin must be installed on your machine.
      --parameters '{"portNumber":["8888"],"localPortNumber":["8888"]}'
    ```
 
-2. Repeat the command in a new terminal for each other port (4040, 19120, 9000, 8181, 8182).
+2. Repeat the command in a new terminal for each other port (4040, 19120, 9000, 8181, 8182, 8183).
 
 ## Stop and clean up
 
@@ -229,8 +236,9 @@ Session Manager plugin must be installed on your machine.
 `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (there is no IMDS on-premise). The services
 read them, but the lab does not test this case yet. Known gaps: the AWS CLI in the `spark`
 container ignores `S3_ENDPOINT`, Polaris credential vending needs an STS endpoint or
-`stsUnavailable`, and the Nessie management port 9000 is also the default MinIO port. A later
-phase verifies the procedure (`NOTES.md`).
+`stsUnavailable`, the Nessie management port 9000 is also the default MinIO port, and the
+baseline catalog has no S3 endpoint setting yet. A later phase verifies the procedure
+(`NOTES.md`).
 
 ## Documents
 
@@ -244,6 +252,7 @@ phase verifies the procedure (`NOTES.md`).
 | [Plan: Stage 1 and Phase 1](docs/superpowers/plans/2026-10-28-stage1-and-phase1.md) | Task-by-task implementation plan |
 | [Plan: Phase 3 (Nessie)](docs/superpowers/plans/2026-10-28-phase3-nessie.md) | Task-by-task implementation plan |
 | [Plan: Phase 2 (Polaris)](docs/superpowers/plans/2026-10-29-phase2-polaris.md) | Task-by-task implementation plan |
+| [Plan: Phase 4 (baseline)](docs/superpowers/plans/2026-10-29-phase4-baseline.md) | Task-by-task implementation plan |
 | [Handoff](docs/HANDOFF.md) | Current state and decisions (for the next work session) |
 
 ## License

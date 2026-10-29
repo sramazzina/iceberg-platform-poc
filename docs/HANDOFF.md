@@ -1,7 +1,7 @@
 # Handoff — Iceberg catalog lab
 
 - Date: 2026-10-29
-- From: Claude Code session on the EC2 lab VM (Phases 1, 3 and 2)
+- From: Claude Code session on the EC2 lab VM (Phases 1, 3, 2 and 4)
 - To: the next Claude Code session on the EC2 lab VM
 
 ## Where we are
@@ -13,21 +13,25 @@
 | Plan (Stage 1, Phase 1) | `docs/superpowers/plans/2026-10-28-stage1-and-phase1.md` — Tasks 1-9 |
 | Plan (Phase 3) | `docs/superpowers/plans/2026-10-28-phase3-nessie.md` — Tasks 10-12 |
 | Plan (Phase 2) | `docs/superpowers/plans/2026-10-29-phase2-polaris.md` — Tasks 13-17 |
+| Plan (Phase 4) | `docs/superpowers/plans/2026-10-29-phase4-baseline.md` — Tasks 18-20 |
 | GitHub milestone | "S1 — Iceberg catalog lab" |
-| GitHub issues | #1-#9, #13-#15 and #17-#21, one per plan task (all done); #22 (Nessie CLI, later phase, open) |
+| GitHub issues | #1-#9, #13-#15 and #17-#21, one per plan task (all done); #24-#26 (Phase 4, close with the Phase 4 PR); #22 (Nessie CLI, later phase, open) |
 | Stage 1 (AWS scripts) | Merged (PR #10) |
 | Phase 1 (Postgres, Spark image, S3 acceptance test) | Merged (PR #11) |
 | Phase 3 (Nessie) | Merged (PR #16) |
 | Phase 2 (Polaris) and optional catalogs | Merged (PR #23) |
-| Next step | Write the Phase 4 plan (baseline `rest-fixture`) |
+| Phase 4 (baseline) | PR open (branch `phase4-baseline`) |
+| Next step | After the merge of the Phase 4 PR: write the Phase 5 plan (scenarios) |
 
 ## Resume here
 
-1. PR #23 is merged and its branch is deleted. Work starts from `main`.
-2. Phase 4 (baseline): brainstorm briefly, then write the plan with `superpowers:writing-plans`,
-   create one issue per task, and execute with subagent-driven development. Read the code, not
-   the old plans: every plan has an "Execution notes (after review)" section, because the reviews
-   changed the code.
+1. The Phase 4 PR (branch `phase4-baseline`, issues #24-#26) is open. The user merges it.
+2. After the user confirms the merge, delete the branch locally and on the remote, then run
+   `git checkout main && git pull`.
+3. Phase 5 (scenarios): brainstorm, then write the plan with `superpowers:writing-plans`, create
+   one issue per task, and execute with subagent-driven development. Read the code, not the old
+   plans: the plans have "Execution notes (after review)" sections, because the reviews changed
+   the code.
 
 ## State of the VM
 
@@ -36,9 +40,11 @@
 - `secrets/spark_user.env` exists (Polaris `spark_user` credentials, git-ignored, mode 600).
 - The Polaris database holds `lab_catalog`, `spark_user` and the roles. The Polaris and Nessie
   catalogs hold no table except the empty namespace `smoke`.
+- The volume `rest-fixture-data` holds the baseline catalog (SQLite). The `rest` catalog holds
+  no table except the empty namespace `smoke`.
 - The S3 bucket has no object under `polaris/`, `nessie/` or `rest/`.
-- To use a catalog: set `COMPOSE_PROFILES=polaris` (or `nessie`) in `.env`, run `make up`, then
-  `make sql-polaris` (or `make sql-nessie`).
+- To use a catalog: set `COMPOSE_PROFILES=polaris` (or `nessie`, or `baseline`) in `.env`, run
+  `make up`, then `make sql-polaris` (or `make sql-nessie`, or `make sql-rest`).
 
 ## Decisions already taken with the user (do not ask again)
 
@@ -93,16 +99,11 @@
   Polaris table must be dropped with `DROP TABLE ... PURGE`. A file left under `polaris/` must be
   deleted by the user from CloudShell.
 - Do not run `make reset` or `docker compose down -v` without the user's approval (they delete the
-  Postgres volume).
+  Postgres volume and the `rest-fixture-data` volume).
 - In this shell `cat` is an alias for a missing `bat`: use `command cat` or the Write tool.
 
 ## Open points to watch
 
-- Phase 4: the profile `baseline` renders the Spark catalog `rest` from
-  `spark/conf/catalogs/baseline.conf`. `tests/smoke-test.sh` assumes that the profile, the service
-  and the Spark catalog have the same name; for `baseline` they differ (service `rest-fixture`,
-  catalog `rest`), so it needs a map.
-- `apache/iceberg-rest-fixture` has no tag for Iceberg 1.11; the lab pins 1.10.1.
 - Nessie publishes its management port on `127.0.0.1:9000`. A local MinIO (on-premise) also
   uses port 9000: map one of them to another host port.
 - Deferred: AWS CLI endpoint for on-premise S3 (`S3_ENDPOINT`), Polaris on-premise
@@ -115,5 +116,5 @@
 
 ```text
 Read docs/HANDOFF.md, CLAUDE.md, NOTES.md, README.md and the spec. Then follow
-"Resume here": start the Phase 4 (baseline) brainstorming.
+"Resume here": check the Phase 4 PR, then start the Phase 5 (scenarios) brainstorming.
 ```
