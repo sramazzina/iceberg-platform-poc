@@ -18,15 +18,13 @@
 | Stage 1 (AWS scripts) | Merged (PR #10) |
 | Phase 1 (Postgres, Spark image, S3 acceptance test) | Merged (PR #11) |
 | Phase 3 (Nessie) | Merged (PR #16) |
-| Phase 2 (Polaris) and optional catalogs | PR #23 (branch `phase2-polaris`), waiting for the user to merge |
-| Next step | After the merge of PR #23: write the Phase 4 plan (baseline `rest-fixture`) |
+| Phase 2 (Polaris) and optional catalogs | Merged (PR #23) |
+| Next step | Write the Phase 4 plan (baseline `rest-fixture`) |
 
 ## Resume here
 
-1. Ask the user if PR #23 is merged. Do not continue before the user confirms.
-2. After the merge: delete `phase2-polaris` locally (`git branch -d`) and on the remote
-   (`git push origin --delete`), then `git checkout main && git pull`.
-3. Phase 4 (baseline): brainstorm briefly, then write the plan with `superpowers:writing-plans`,
+1. PR #23 is merged and its branch is deleted. Work starts from `main`.
+2. Phase 4 (baseline): brainstorm briefly, then write the plan with `superpowers:writing-plans`,
    create one issue per task, and execute with subagent-driven development. Read the code, not
    the old plans: every plan has an "Execution notes (after review)" section, because the reviews
    changed the code.
@@ -116,6 +114,6 @@
 ## Kick-off prompt for the next session
 
 ```text
-Read docs/HANDOFF.md, CLAUDE.md, NOTES.md and the spec. Then follow "Resume here":
-ask me if PR #23 is merged before you continue.
+Read docs/HANDOFF.md, CLAUDE.md, NOTES.md, README.md and the spec. Then follow
+"Resume here": start the Phase 4 (baseline) brainstorming.
 ```
