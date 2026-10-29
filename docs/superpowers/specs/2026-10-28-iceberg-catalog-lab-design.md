@@ -155,6 +155,14 @@ Every version is pinned in `.env`. The tag `latest` is never used.
   `COMPOSE_PROFILES`, so the running services always match `.env`.
 - Stopping a catalog keeps its data: its Postgres database and its S3 prefix stay.
 
+### 5.0.1 Nessie CLI (requested 2026-10-29, later phase)
+
+- The lab includes the Nessie CLI, for the Nessie native API (branches, tags, commits,
+  merges) from the command line. Issue #22 lists the open points: distribution and
+  license, where it runs (spark image or a service in the profile `nessie`), pinned
+  version, Makefile target, test.
+- Not part of Phase 2. The design and the plan come in a later phase.
+
 ### 5.1 `polaris-setup`
 
 The script is POSIX `sh`. It reads the JSON answers with `sed`, because the image

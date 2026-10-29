@@ -54,6 +54,8 @@ L'utente deve poter eseguire gli stessi scenari di test sui due cataloghi e conf
 
 I cataloghi (`polaris`, `nessie`, `rest-fixture`) sono spenti di default. L'utente sceglie quali accendere con la variabile `COMPOSE_PROFILES` in `.env` (profili Compose `polaris`, `nessie`, `baseline`). Il laboratorio deve contenere tutti i cataloghi, ma non deve farli girare insieme: per i test basta un catalogo acceso alla volta. Spegnere un catalogo non cancella i suoi dati.
 
+Il laboratorio include anche la Nessie CLI, per usare l'API nativa di Nessie (branch, tag, commit, merge) dalla riga di comando. Questo requisito è per una fase successiva (issue #22): la progettazione e il piano vengono fatti in quella fase.
+
 ### 5.2 Immagine Spark
 
 1. Parti dall'immagine ufficiale `apache/spark` o da un'immagine Python con Spark installato.
