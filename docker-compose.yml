@@ -18,6 +18,44 @@ services:
       timeout: 5s
       retries: 30
 
+  nessie:
+    image: ${NESSIE_IMAGE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Version store: JDBC2 on the database nessie. Nessie creates its tables itself.
+      NESSIE_VERSION_STORE_TYPE: JDBC2
+      NESSIE_VERSION_STORE_PERSIST_JDBC_DATASOURCE: postgresql
+      QUARKUS_DATASOURCE_POSTGRESQL_JDBC_URL: jdbc:postgresql://postgres:5432/nessie
+      QUARKUS_DATASOURCE_POSTGRESQL_USERNAME: nessie
+      QUARKUS_DATASOURCE_POSTGRESQL_PASSWORD: ${NESSIE_DB_PASSWORD}
+      # Iceberg REST warehouse on the nessie/ prefix.
+      NESSIE_CATALOG_DEFAULT_WAREHOUSE: lab
+      NESSIE_CATALOG_WAREHOUSES_LAB_LOCATION: s3://${S3_BUCKET}/nessie/
+      NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_REGION: ${AWS_REGION}
+      NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_ENDPOINT: ${S3_ENDPOINT:-}
+      NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_PATH_STYLE_ACCESS: ${S3_PATH_STYLE_ACCESS:-false}
+      # AWS default credential chain: the VM instance profile through IMDSv2.
+      NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_AUTH_TYPE: APPLICATION_GLOBAL
+      # Optional static keys: empty on AWS, the default chain then falls through to the instance profile.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      # Spark signs its own S3 requests with the VM instance profile (spec section 5.3).
+      NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_REQUEST_SIGNING_ENABLED: "false"
+      # The check calls S3 HeadBucket, which the prefix-scoped VM policy denies (NOTES.md D10).
+      NESSIE_CATALOG_OBJECT_STORES_HEALTH_CHECK_ENABLED: "false"
+      JAVA_OPTS_APPEND: -Xmx384m -XX:MaxDirectMemorySize=128m
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:19120:19120"
+      - "127.0.0.1:9000:9000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/q/health/ready >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
   spark:
     build:
       context: ./spark
@@ -31,6 +69,9 @@ services:
         LAB_UID: ${LAB_UID:-1000}
     image: iceberg-lab-spark:${ICEBERG_VERSION}
     init: true
+    depends_on:
+      nessie:
+        condition: service_healthy
     environment:
       S3_BUCKET: ${S3_BUCKET}
       AWS_REGION: ${AWS_REGION}
