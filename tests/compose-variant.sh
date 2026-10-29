@@ -13,7 +13,7 @@ env_file=.env.example
 # config FILES: the rendered configuration (JSON) for COMPOSE_FILE=FILES, every profile on.
 config() {
   COMPOSE_FILE="$1" COMPOSE_PROFILES='*' docker compose --env-file "$env_file" \
-    config --format json 2>/dev/null || echo '{}'
+    config --format json || echo '{}'
 }
 # q JSON FILTER: the jq result as raw text.
 q() { jq -r "$2" <<<"$1" 2>/dev/null || echo "jq failed"; }

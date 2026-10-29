@@ -15,7 +15,8 @@ ALL_PROFILES = COMPOSE_PROFILES='*'
 
 up:
 	mkdir -p secrets secrets/rustfs
-	@dir=$$(docker compose config --format json | jq -r '.services.rustfs.volumes[]? | select(.target == "/data") | .source') || exit 1; \
+	@cfg=$$(docker compose config --format json) || exit 1; \
+	dir=$$(printf '%s' "$$cfg" | jq -r '.services.rustfs.volumes[]? | select(.target == "/data") | .source') || exit 1; \
 	if [ -n "$$dir" ]; then mkdir -p "$$dir"; fi
 	@on=$$(docker compose config --services) || exit 1; \
 	off=$$($(ALL_PROFILES) docker compose config --services | grep -vxF "$$on" || true); \
