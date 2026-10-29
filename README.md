@@ -9,16 +9,22 @@ The lab is a test environment, not a production environment.
 
 ## Status
 
-Work in progress. Stage 1 (AWS scripts) and Phase 1 (Postgres, Spark image) are done.
-Phase 3 adds Nessie, before Phase 2 (Polaris), see `NOTES.md` D9.
+Work in progress. Stage 1 (AWS scripts), Phase 1 (Postgres, Spark image), Phase 2 (Polaris)
+and Phase 3 (Nessie) are done.
 
-Quick check on the VM:
+The catalogs are off by default. To choose them:
 
-1. Run `make up`.
-2. Run `make smoke-test`.
-3. Run `make down`.
+1. Set `COMPOSE_PROFILES` in `.env`, for example `COMPOSE_PROFILES=polaris` or
+   `COMPOSE_PROFILES=nessie`. Leave it empty for no catalog.
+2. Run `make up`. It starts the catalogs in `COMPOSE_PROFILES` and stops the others.
+   Their data stays.
+3. Run `make smoke-test`. It tests the base stack and each catalog that is on.
+4. Run `make down` when you stop working.
 
-Open a Spark SQL shell on the Nessie catalog with `make sql-nessie`.
+Open a Spark SQL shell on a catalog with `make sql-polaris` or `make sql-nessie`.
+
+If `polaris-setup` resets the `spark_user` credentials (its log says `credentials reset`),
+run `docker compose restart spark`: a running `spark` container keeps the old credentials.
 
 | Document | Content |
 |---|---|
@@ -26,6 +32,7 @@ Open a Spark SQL shell on the Nessie catalog with `make sql-nessie`.
 | [Design spec](docs/superpowers/specs/2026-10-28-iceberg-catalog-lab-design.md) | Architecture, services, S3 access model, tests |
 | [Plan: Stage 1 and Phase 1](docs/superpowers/plans/2026-10-28-stage1-and-phase1.md) | Task-by-task implementation plan |
 | [Plan: Phase 3 (Nessie)](docs/superpowers/plans/2026-10-28-phase3-nessie.md) | Task-by-task implementation plan |
+| [Plan: Phase 2 (Polaris)](docs/superpowers/plans/2026-10-29-phase2-polaris.md) | Task-by-task implementation plan |
 | [Handoff](docs/HANDOFF.md) | Current state and decisions |
 
 ## Access from your machine
@@ -39,6 +46,10 @@ authentication, so do not open these ports in the security group. Use a tunnel i
 | Spark UI (only while a Spark session runs) | 4040 | <http://localhost:4040> |
 | Nessie API | 19120 | <http://localhost:19120/api/v2/trees> |
 | Nessie management (health) | 9000 | <http://localhost:9000/q/health/ready> |
+| Polaris API (needs a token) | 8181 | <http://localhost:8181/api/management/v1/catalogs> |
+| Polaris management (health) | 8182 | <http://localhost:8182/q/health/ready> |
+
+A catalog port answers only when the catalog is on (`COMPOSE_PROFILES`).
 
 ### SSH tunnel
 
@@ -52,6 +63,8 @@ authentication, so do not open these ports in the security group. Use a tunnel i
      -L 4040:127.0.0.1:4040 \
      -L 19120:127.0.0.1:19120 \
      -L 9000:127.0.0.1:9000 \
+     -L 8181:127.0.0.1:8181 \
+     -L 8182:127.0.0.1:8182 \
      admin@<vm-public-ip>
    ```
 
@@ -75,7 +88,7 @@ Session Manager plugin must be installed on your machine.
      --parameters '{"portNumber":["8888"],"localPortNumber":["8888"]}'
    ```
 
-2. Repeat the command in a new terminal for each other port (4040, 19120, 9000).
+2. Repeat the command in a new terminal for each other port (4040, 19120, 9000, 8181, 8182).
 
 ## What the lab contains
 

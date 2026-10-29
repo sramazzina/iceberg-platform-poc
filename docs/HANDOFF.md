@@ -12,12 +12,14 @@
 | Design spec | `docs/superpowers/specs/2026-10-28-iceberg-catalog-lab-design.md` — approved |
 | Plan | `docs/superpowers/plans/2026-10-28-stage1-and-phase1.md` — Stage 1 (Tasks 1-6) and Phase 1 (Tasks 7-9) |
 | Plan (Phase 3) | `docs/superpowers/plans/2026-10-28-phase3-nessie.md` — Tasks 10-12 |
+| Plan (Phase 2) | `docs/superpowers/plans/2026-10-29-phase2-polaris.md` — Tasks 13-17 |
 | GitHub milestone | "S1 — Iceberg catalog lab" |
-| GitHub issues | #1-#9 and #13-#15, one per plan task |
+| GitHub issues | #1-#9, #13-#15 and #17-#21, one per plan task; #22 (Nessie CLI, later phase) |
 | Stage 1 (AWS scripts) | Merged (PR #10) |
 | Phase 1 (Postgres, Spark image, S3 acceptance test) | Merged (PR #11) |
-| Phase 3 (Nessie) | Done on branch `phase3-nessie`. PR pending. Phase 2 (Polaris) comes later (`NOTES.md` D9) |
-| Next step | Write the Phase 2 plan (Polaris) |
+| Phase 3 (Nessie) | Merged (PR #16) |
+| Phase 2 (Polaris) and optional catalogs | Done on branch `phase2-polaris`. PR pending |
+| Next step | Write the Phase 4 plan (baseline `rest-fixture`) |
 
 ## Decisions already taken with the user (do not ask again)
 
@@ -40,6 +42,9 @@
    PR B = issues #7-#9 (Phase 1). Phases 2-6 get one plan and one PR each, planned on the VM
    after Phase 1 passes.
 10. Phase 3 (Nessie) runs before Phase 2 (Polaris) (2026-10-28, `NOTES.md` D9).
+11. The catalogs are off by default; `COMPOSE_PROFILES` in `.env` selects them. The catalogs do
+    not have to run together (2026-10-29, `NOTES.md` D11).
+12. The Nessie CLI is a requirement for a later phase (2026-10-29, issue #22).
 
 ## How to execute (from `CLAUDE.md`)
 
