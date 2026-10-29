@@ -68,7 +68,7 @@ Each entry: what the requirement says, what the lab does, and why.
 ### D11 — The catalogs are optional
 - Requirement (sections 5.1 and 7): the stack has the services `polaris` and `nessie`, and the
   Makefile has the target `up-baseline`.
-- Lab: each catalog is a Compose profile (`polaris`, `nessie`, later `baseline`). The catalogs
+- Lab: each catalog is a Compose profile (`polaris`, `nessie`, `baseline`). The catalogs
   are off by default. `COMPOSE_PROFILES` in `.env` selects them. There is no `up-baseline`: add
   `baseline` to `COMPOSE_PROFILES`.
 - Why: user decision (2026-10-29). The user chooses the catalog for each test. The catalogs do
@@ -138,9 +138,31 @@ Each entry: what the requirement says, what the lab does, and why.
   `polaris-bootstrap` container until `make down` removes it.
 - Accepted for a single-user lab VM, where Docker access already gives root access.
 
+### F5 — `apache/iceberg-rest-fixture` (1.10.1, checked 2026-10-29)
+- No tag matches Iceberg 1.11: the lab uses 1.10.1, the newest versioned tag. The Spark client
+  is 1.11.0. The acceptance test passes with this combination.
+- The default catalog is SQLite on `/tmp/iceberg_catalog.db`, which is lost when the container
+  is recreated. Lab: `CATALOG_URI=jdbc:sqlite:/home/iceberg/catalog.db` on the named volume
+  `rest-fixture-data`. The volume is mounted on `/home/iceberg`, the home of the image user
+  `iceberg` (uid 1000): Docker gives a named volume the owner of the folder in the image. A
+  folder that is not in the image (for example `/home/iceberg/data`) is owned by root, and the
+  fixture cannot write it.
+- The fixture listens on 8181, the host port of Polaris. Lab: host port 8183, so `polaris` and
+  `baseline` can be on together.
+- `GET /v1/config` gives no default to clients (`"defaults":{}`): Spark uses its own region
+  (`AWS_REGION`) and the VM instance profile.
+- `DROP TABLE ... PURGE`: Spark deletes the files, not the fixture. `SparkCatalog.purgeTable`
+  drops the table without purge, then deletes the reachable files with the table FileIO, that
+  is the VM instance profile. The fixture log shows only `JdbcCatalog - Dropped table`. This is
+  the same mechanism as F3. Source:
+  `spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkCatalog.java` at tag
+  `apache-iceberg-1.11.0`. `tests/catalog-smoke.sh rest` fails when a file is left under the
+  table root, and the VM role deletes it.
+- On-premise S3 for the fixture (`CATALOG_S3_ENDPOINT`, path-style access): not configured and
+  not tested. An empty endpoint value can break `S3FileIO`, so the lab does not pass it on AWS.
+
 ## Open investigations
 
-Filled in during phases 2-4.
+Filled in during the later phases.
 
 - Polaris credential vending against S3-compatible on-premise storage (`stsUnavailable`, `stsEndpoint`).
-- `apache/iceberg-rest-fixture`: no tag matches Iceberg 1.11; the lab uses 1.10.1.
