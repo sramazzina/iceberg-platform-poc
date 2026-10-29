@@ -55,6 +55,7 @@ flowchart LR
 ```
 
 `postgres` and `spark` always run. The catalogs are Compose profiles and are off by default.
+The `spark` image also has the Nessie CLI (command `nessie`).
 
 ## Prerequisites
 
@@ -114,6 +115,21 @@ with each catalog.
   SELECT * FROM demo.t;
   ```
 
+- **Nessie CLI**: `make nessie-cli` (the catalog `nessie` must be on). The CLI is also in the
+  JupyterLab terminal: run `nessie`. It connects to the Nessie service of the lab. Examples:
+
+  ```text
+  LIST REFERENCES;
+  CREATE BRANCH dev FROM main;
+  USE REFERENCE dev;
+  SHOW LOG;
+  MERGE dev INTO main;
+  ```
+
+  Without a terminal, run one command:
+  `docker compose exec -T spark nessie -q --stdout -c "LIST REFERENCES"`.
+  Documentation: <https://projectnessie.org/nessie-latest/cli/>.
+
 - **JupyterLab**: open <http://localhost:8888> through a tunnel (see
   [Access from your machine](#access-from-your-machine)) and enter `JUPYTER_TOKEN` from
   `.env`. Save your notebooks in `scenarios/`: this folder is on the disk of the VM, so the
@@ -142,6 +158,7 @@ with each catalog.
 | `make reset` | Like `make down`, and also **deletes the volumes**: all Polaris and Nessie metadata (Postgres) and the baseline catalog (SQLite) are lost. The S3 files stay |
 | `make smoke-test` | Runs the acceptance tests of the base stack and of each catalog that is on |
 | `make sql-polaris`, `make sql-nessie`, `make sql-rest` | Opens a Spark SQL shell on the catalog |
+| `make nessie-cli` | Opens the Nessie CLI on the Nessie service (the catalog `nessie` must be on) |
 | `make logs` | Shows the logs of the running services |
 | `make lint` | Static checks: script syntax, JSON, Compose file, no secret in tracked files |
 | `make test-aws` | Tests the AWS scripts against a stub AWS CLI (no AWS access) |
@@ -253,6 +270,7 @@ baseline catalog has no S3 endpoint setting yet. A later phase verifies the proc
 | [Plan: Phase 3 (Nessie)](docs/superpowers/plans/2026-10-28-phase3-nessie.md) | Task-by-task implementation plan |
 | [Plan: Phase 2 (Polaris)](docs/superpowers/plans/2026-10-29-phase2-polaris.md) | Task-by-task implementation plan |
 | [Plan: Phase 4 (baseline)](docs/superpowers/plans/2026-10-29-phase4-baseline.md) | Task-by-task implementation plan |
+| [Plan: Nessie CLI](docs/superpowers/plans/2026-10-29-nessie-cli.md) | Task-by-task implementation plan |
 | [Handoff](docs/HANDOFF.md) | Current state and decisions (for the next work session) |
 
 ## License
