@@ -9,9 +9,13 @@ tests/s3-access.sh
 
 services=$(docker compose config --services)
 ran=0
-for catalog in nessie polaris; do
-  if grep -qx "$catalog" <<<"$services"; then
-    "tests/$catalog-service.sh"
+# service:catalog for each catalog. For the profile baseline the names differ: service
+# rest-fixture, Spark catalog rest. A service test runs when tests/<service>-service.sh exists.
+for entry in nessie:nessie polaris:polaris rest-fixture:rest; do
+  service=${entry%%:*}
+  catalog=${entry#*:}
+  if grep -qx "$service" <<<"$services"; then
+    if [[ -f tests/$service-service.sh ]]; then "tests/$service-service.sh"; fi
     tests/catalog-smoke.sh "$catalog"
     ran=1
   fi

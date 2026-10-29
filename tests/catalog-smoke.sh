@@ -14,13 +14,16 @@ if [[ -v keep ]]; then COMPOSE_PROFILES=$keep; fi
 catalog=${1:-}
 ts=$(date +%s)
 # Per-catalog policy.
-# own_files=1: the VM role deletes the table files after the drop (Nessie never deletes files).
+# own_files=1: the VM role can delete under the prefix. It deletes the table files after the
+# drop (Nessie never deletes files) or the files that a purge leaves.
 # own_files=0: DROP TABLE ... PURGE deletes the files with the credentials that the catalog
 # vends; the VM role cannot write under polaris/.
+# A drop with PURGE must leave no file under the table root.
 case $catalog in
   nessie) prefix=nessie; drop_sql="DROP TABLE IF EXISTS %s"; own_files=1 ;;
   polaris) prefix=polaris; drop_sql="DROP TABLE IF EXISTS %s PURGE"; own_files=0 ;;
-  *) echo "unknown catalog '$catalog'; usage: tests/catalog-smoke.sh nessie|polaris" >&2; exit 2 ;;
+  rest) prefix=rest; drop_sql="DROP TABLE IF EXISTS %s PURGE"; own_files=1 ;;
+  *) echo "unknown catalog '$catalog'; usage: tests/catalog-smoke.sh nessie|polaris|rest" >&2; exit 2 ;;
 esac
 
 table="$catalog.smoke.t_$ts"
@@ -51,11 +54,15 @@ cleanup() {
     echo "  warn - could not drop $table; S3 files kept"
     return 0
   fi
-  if ((!own_files)) && [[ -n $root ]]; then
+  if [[ -n $root && $drop_sql == *PURGE ]]; then
     left=$(docker compose exec -T spark aws s3 ls --recursive "$root/" 2>/dev/null || true)
     if [[ -n $left ]]; then
       echo "  FAIL - files left under $root/ after the purge:"
       echo "$left"
+      if ((own_files)); then
+        docker compose exec -T spark aws s3 rm --recursive --quiet "$root/" >/dev/null 2>&1 \
+          || echo "  warn - could not delete $root/"
+      fi
       exit 1
     fi
   elif ((own_files)) && [[ -n $root ]]; then
