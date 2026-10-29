@@ -23,15 +23,19 @@
 | Phase 2 (Polaris) and optional catalogs | Merged (PR #23) |
 | Phase 4 (baseline) | Merged (PR #27) |
 | Nessie CLI | Merged (PR #30) |
-| Next step | Write the Phase 5 plan (scenarios) |
+| Phase 5 (scenarios) and Phase 6 (evaluation) | Deferred to a later stage (user decision, 2026-10-29) |
+| Next step | None planned. The platform is complete for the current scope (study) |
 
 ## Resume here
 
 1. PR #30 (Nessie CLI) is merged and its branch is deleted. Work starts from `main`.
-2. Phase 5 (scenarios): brainstorm, then write the plan with `superpowers:writing-plans`, create
-   one issue per task, and execute with subagent-driven development. Read the code, not the old
-   plans: the plans have "Execution notes (after review)" sections, because the reviews changed
-   the code.
+2. The current scope is to build the platform for study, not to compare the catalogs. Phase 5
+   (scenarios) and Phase 6 (`EVALUATION.md`) are deferred to a later stage. Do not start them
+   unless the user asks. The requirements stay in `docs/req/` (sections "Fase 5" and "Fase 6").
+3. When the user resumes Phase 5: brainstorm, then write the plan with
+   `superpowers:writing-plans`, create one issue per task, and execute with subagent-driven
+   development. Read the code, not the old plans: the plans have "Execution notes (after review)"
+   sections, because the reviews changed the code.
 
 ## State of the VM
 
@@ -71,6 +75,8 @@
 12. The Nessie CLI is in the `spark` image (command `nessie`, `make nessie-cli`), not in its own
     service (user decision, 2026-10-29).
 13. `spark.driver.memory` stays 4g for now; lower it to 2g if memory is short (VM: 2 vCPU, 7 GiB).
+14. Phase 5 (scenarios) and Phase 6 (evaluation) are deferred to a later stage. The current scope
+    is the platform for study, not the comparison of the catalogs (user decision, 2026-10-29).
 
 ## How to execute (from `CLAUDE.md` and `~/.claude/CLAUDE.md`)
 
@@ -120,5 +126,5 @@
 
 ```text
 Read docs/HANDOFF.md, CLAUDE.md, NOTES.md, README.md and the spec. Then follow
-"Resume here": start the Phase 5 (scenarios) brainstorming.
+"Resume here". Phase 5 and Phase 6 are deferred: ask the user what to do next.
 ```

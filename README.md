@@ -10,9 +10,10 @@ The lab is a test environment, not a production environment.
 
 ## Status
 
-Work in progress. Stage 1 (AWS scripts), Phase 1 (Postgres, Spark image), Phase 2 (Polaris),
-Phase 3 (Nessie) and Phase 4 (baseline catalog `rest`) are done. The scenario notebooks
-(Phase 5) and the evaluation (Phase 6) are not done yet.
+The platform is complete. Stage 1 (AWS scripts), Phase 1 (Postgres, Spark image), Phase 2
+(Polaris), Phase 3 (Nessie) and Phase 4 (baseline catalog `rest`) are done. The current scope is
+to build the platform for study, not to compare the catalogs. The scenario notebooks (Phase 5)
+and the evaluation (Phase 6) are deferred to a later stage.
 
 ## What the lab contains
 
