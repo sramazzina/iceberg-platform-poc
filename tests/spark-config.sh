@@ -8,7 +8,12 @@ cd "$ROOT"
 # conf CATALOGS: the rendered spark-defaults.conf for LAB_CATALOGS=CATALOGS.
 conf() {
   docker compose run --rm --no-deps -T -e LAB_CATALOGS="$1" spark \
-    cat /opt/spark/conf/spark-defaults.conf 2>&1 || echo "command failed"
+    cat /opt/spark/conf/spark-defaults.conf 2>/dev/null || echo "command failed"
+}
+
+# conf_err CATALOGS: what the entrypoint prints on stderr for LAB_CATALOGS=CATALOGS.
+conf_err() {
+  docker compose run --rm --no-deps -T -e LAB_CATALOGS="$1" spark true 2>&1 >/dev/null || echo "command failed"
 }
 
 echo "spark configuration"
@@ -22,6 +27,7 @@ assert_contains "$nessie" "IcebergSparkSessionExtensions" "common part with ness
 
 unknown=$(conf baseline)
 assert_not_contains "$unknown" "command failed" "a profile without a template is skipped"
-assert_contains "$unknown" "no Spark catalog for profile 'baseline'" "a profile without a template gives a warning"
+assert_not_contains "$unknown" "no Spark catalog" "the warning is not in the rendered file"
+assert_contains "$(conf_err baseline)" "no Spark catalog for profile 'baseline'" "a profile without a template gives a warning on stderr"
 
 finish

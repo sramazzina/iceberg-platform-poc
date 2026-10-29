@@ -9,16 +9,24 @@ templates=/opt/spark/conf-templates
 conf=/opt/spark/conf/spark-defaults.conf
 secrets=/run/lab-secrets/spark_user.env
 
-# The Polaris template needs the spark_user credentials written by polaris-setup.
-if [[ -f $secrets ]]; then
-  set -a; source "$secrets"; set +a
-fi
+IFS=', ' read -ra list <<<"${LAB_CATALOGS:-}"
 
-catalogs=${LAB_CATALOGS:-}
+# The Polaris template needs the spark_user credentials written by polaris-setup.
+# Source them only when Polaris is on; do not export them.
+for catalog in "${list[@]}"; do
+  if [[ $catalog == polaris && -f $secrets ]]; then
+    source "$secrets"
+  fi
+done
+
+# The rendered file can hold the Polaris client secret: keep it private.
+umask 077
 {
   render_template "$templates/spark-defaults.conf"
-  for catalog in ${catalogs//,/ }; do
-    if [[ -f $templates/catalogs/$catalog.conf ]]; then
+  for catalog in "${list[@]}"; do
+    if [[ $catalog == '*' ]]; then
+      echo "lab-entrypoint: COMPOSE_PROFILES='*' is not supported for Spark; list the catalogs" >&2
+    elif [[ -f $templates/catalogs/$catalog.conf ]]; then
       printf '\n'
       render_template "$templates/catalogs/$catalog.conf"
     else
