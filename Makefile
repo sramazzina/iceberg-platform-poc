@@ -14,7 +14,7 @@ ALL_PROFILES = COMPOSE_PROFILES='*'
 
 up:
 	mkdir -p secrets
-	@on=$$(docker compose config --services); \
+	@on=$$(docker compose config --services) || exit 1; \
 	off=$$($(ALL_PROFILES) docker compose config --services | grep -vxF "$$on" || true); \
 	if [ -n "$$off" ]; then $(ALL_PROFILES) docker compose stop $$off; fi
 	docker compose up -d --build --wait
