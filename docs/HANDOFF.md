@@ -16,19 +16,21 @@
 | Plan (Phase 4) | `docs/superpowers/plans/2026-10-29-phase4-baseline.md` — Tasks 18-20 |
 | Plan (Nessie CLI) | `docs/superpowers/plans/2026-10-29-nessie-cli.md` — Tasks 21-22 |
 | GitHub milestone | "S1 — Iceberg catalog lab" |
-| GitHub issues | #1-#9, #13-#15 and #17-#21, one per plan task (all done); #24-#26 (Phase 4, done); #22, #28-#29 (Nessie CLI, done); no open issue |
+| GitHub issues | #1-#9, #13-#15 and #17-#21, one per plan task (all done); #24-#26 (Phase 4, done); #22, #28-#29 (Nessie CLI, done); #31 (deferral of Phases 5-6, done); no open issue |
 | Stage 1 (AWS scripts) | Merged (PR #10) |
 | Phase 1 (Postgres, Spark image, S3 acceptance test) | Merged (PR #11) |
 | Phase 3 (Nessie) | Merged (PR #16) |
 | Phase 2 (Polaris) and optional catalogs | Merged (PR #23) |
 | Phase 4 (baseline) | Merged (PR #27) |
 | Nessie CLI | Merged (PR #30) |
+| Spec and `NOTES.md` aligned with the deferral (D14) | Merged (PR #32) |
 | Phase 5 (scenarios) and Phase 6 (evaluation) | Deferred to a later stage (user decision, 2026-10-29) |
 | Next step | None planned. The platform is complete for the current scope (study) |
 
 ## Resume here
 
-1. PR #30 (Nessie CLI) is merged and its branch is deleted. Work starts from `main`.
+1. PR #32 (deferral of Phases 5-6 in the spec) is merged and its branch is deleted. Work starts
+   from `main`.
 2. The current scope is to build the platform for study, not to compare the catalogs. Phase 5
    (scenarios) and Phase 6 (`EVALUATION.md`) are deferred to a later stage. Do not start them
    unless the user asks. The requirements stay in `docs/req/` (sections "Fase 5" and "Fase 6").
