@@ -20,6 +20,8 @@ services:
 
   nessie:
     image: ${NESSIE_IMAGE}
+    # Catalogs are off by default; COMPOSE_PROFILES in .env selects them (spec section 5.0).
+    profiles: [nessie]
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,8 +72,10 @@ services:
     image: iceberg-lab-spark:${ICEBERG_VERSION}
     init: true
     depends_on:
+      # required: false lets spark start when the catalog is off.
       nessie:
         condition: service_healthy
+        required: false
     environment:
       S3_BUCKET: ${S3_BUCKET}
       AWS_REGION: ${AWS_REGION}
