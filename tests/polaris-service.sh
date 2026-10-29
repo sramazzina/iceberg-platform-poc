@@ -5,7 +5,10 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/tests/lib/assert.sh"
 cd "$ROOT"
+# Keep the COMPOSE_PROFILES of the caller: .env would overwrite it.
+if [[ -v COMPOSE_PROFILES ]]; then keep=$COMPOSE_PROFILES; fi
 set -a; source .env; set +a
+if [[ -v keep ]]; then COMPOSE_PROFILES=$keep; fi
 
 # curl runs inside the polaris container, so the test does not depend on the published ports.
 # api PATH: GET on the management API as root. The root credentials stay in the container env.
@@ -32,15 +35,25 @@ assert_contains "$grants" "CATALOG_MANAGE_CONTENT" "catalog role lab_admin can m
 roles=$(api /principal-roles/spark_role/catalog-roles/lab_catalog | jq -r '[.roles[].name] | join(",")' 2>&1 || true)
 assert_eq "$roles" "lab_admin" "principal role spark_role has lab_admin"
 
-assert_eq "$(stat -c %a secrets/spark_user.env 2>&1 || true)" "600" "secrets/spark_user.env exists, mode 600"
+roles=$(api /principals/spark_user/principal-roles | jq -r '[.roles[].name] | join(",")' 2>&1 || true)
+assert_eq "$roles" "spark_role" "principal spark_user has spark_role"
+
+assert_eq "$(docker compose logs polaris-bootstrap 2>&1 | grep -cF -- "$POLARIS_ROOT_CLIENT_SECRET" || true)" "0" "the bootstrap log does not show the root secret"
+
+mode=$(stat -c %a secrets/spark_user.env 2>&1 || true)
+assert_eq "$mode" "600" "secrets/spark_user.env exists, mode 600"
 
 client=$(docker compose exec -T spark sh -c \
   "sed -n 's/^spark.sql.catalog.polaris.credential *\([^:]*\):.*/\1/p' /opt/spark/conf/spark-defaults.conf" 2>&1 || true)
+spark_id=$(sed -n 's/^POLARIS_SPARK_CLIENT_ID=//p' secrets/spark_user.env 2>/dev/null || true)
 assert_not_contains "$client" "$POLARIS_ROOT_CLIENT_ID" "Spark does not use the root credentials"
+assert_eq "$client" "$spark_id" "Spark uses the spark_user client id"
 assert_eq "$(grep -c . <<<"$client")" "1" "Spark has one polaris credential"
 
-rerun=$(docker compose run --rm --no-deps polaris-setup 2>&1 || echo "polaris-setup failed")
-assert_contains "$rerun" "credentials file kept" "a second polaris-setup run keeps the credentials"
-assert_not_contains "$rerun" "polaris-setup failed" "a second polaris-setup run succeeds"
+if [[ $mode == 600 ]]; then
+  rerun=$(docker compose run --rm --no-deps polaris-setup 2>&1 || echo "polaris-setup failed")
+  assert_contains "$rerun" "credentials file kept" "a second polaris-setup run keeps the credentials"
+  assert_not_contains "$rerun" "polaris-setup failed" "a second polaris-setup run succeeds"
+fi
 
 finish

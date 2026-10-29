@@ -69,8 +69,17 @@ services:
       QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/polaris
       QUARKUS_DATASOURCE_USERNAME: polaris
       QUARKUS_DATASOURCE_PASSWORD: ${POLARIS_DB_PASSWORD}
+      # Not POLARIS_*: avoids the Quarkus config mapping.
+      LAB_ROOT_ID: ${POLARIS_ROOT_CLIENT_ID}
+      LAB_ROOT_SECRET: ${POLARIS_ROOT_CLIENT_SECRET}
     # Creates the Polaris tables in polaris_schema and the root principal. A second run skips.
-    command: ["bootstrap", "-r", "POLARIS", "-c", "POLARIS,${POLARIS_ROOT_CLIENT_ID},${POLARIS_ROOT_CLIENT_SECRET}"]
+    # The credentials go through a private file: run-java.sh logs the full argument list.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        umask 077
+        printf 'POLARIS:\n  client-id: "%s"\n  client-secret: "%s"\n' "$$LAB_ROOT_ID" "$$LAB_ROOT_SECRET" >/tmp/root.yaml
+        exec /opt/jboss/container/java/run/run-java.sh bootstrap -f /tmp/root.yaml
 
   polaris:
     image: ${POLARIS_IMAGE}
@@ -86,6 +95,9 @@ services:
       # Polaris calls STS with the AWS default credential chain (VM instance profile) and
       # assumes polaris-s3-access to vend S3 credentials to Spark.
       AWS_REGION: ${AWS_REGION}
+      # Optional static keys: empty on AWS, the default chain then falls through to the instance profile.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       JAVA_OPTS_APPEND: -Xmx384m -XX:MaxDirectMemorySize=128m
     mem_limit: 1g
     ports:

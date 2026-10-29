@@ -11,11 +11,17 @@ OUT=/secrets/spark_user.env
 ANSWER=/tmp/polaris-answer
 
 fail() { echo "polaris-setup: $*" >&2; exit 1; }
+# The answer file can hold the clientSecret.
+trap 'rm -f "$ANSWER" "$OUT.new"' EXIT
+
+: "${POLARIS_ROLE_ARN:?}" "${POLARIS_EXTERNAL_ID:?}" "${S3_BUCKET:?}" "${AWS_REGION:?}"
+case ${S3_PATH_STYLE_ACCESS:-false} in true|false) ;; *) fail "S3_PATH_STYLE_ACCESS must be true or false" ;; esac
 
 # field NAME: prints the string value of the JSON field NAME in $ANSWER.
 field() { sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" "$ANSWER"; }
 
-curl -fsS -o "$ANSWER" -X POST "$API/api/catalog/v1/oauth/tokens" \
+# The retry covers a restart while Polaris is still booting.
+curl -fsS --retry 30 --retry-all-errors --retry-delay 2 -o "$ANSWER" -X POST "$API/api/catalog/v1/oauth/tokens" \
   --user "$POLARIS_ROOT_CLIENT_ID:$POLARIS_ROOT_CLIENT_SECRET" \
   -d grant_type=client_credentials -d scope=PRINCIPAL_ROLE:ALL || fail "no root token"
 token=$(field access_token)
@@ -28,12 +34,13 @@ call() {
     "$MGMT$2" -d "$3"
 }
 
-# create WHAT METHOD PATH BODY: HTTP 2xx = created, 409 = already present.
+# create WHAT METHOD PATH BODY: HTTP 2xx = created (set for PUT), 409 = already present.
 create() {
   what=$1; shift
+  verb=created; [ "$1" = PUT ] && verb=set
   code=$(call "$@")
   case $code in
-    2??) echo "polaris-setup: $what created" ;;
+    2??) echo "polaris-setup: $what $verb" ;;
     409) echo "polaris-setup: $what already present" ;;
     *) fail "$what: HTTP $code: $(cat "$ANSWER")" ;;
   esac
@@ -53,12 +60,17 @@ code=$(call POST /principals '{"principal":{"name":"spark_user"}}')
 case $code in
   201) echo "polaris-setup: principal spark_user created"; write=1 ;;
   409)
-    if [ -s "$OUT" ]; then
+    # The file is kept only if it works: a token call as spark_user (nothing is printed).
+    if [ -s "$OUT" ] && ( . "$OUT" && curl -fsS -o /dev/null -X POST "$API/api/catalog/v1/oauth/tokens" \
+        --user "$POLARIS_SPARK_CLIENT_ID:$POLARIS_SPARK_CLIENT_SECRET" \
+        -d grant_type=client_credentials -d scope=PRINCIPAL_ROLE:ALL ) >/dev/null 2>&1; then
       echo "polaris-setup: principal spark_user already present, credentials file kept"; write=0
     else
+      reason="credentials file does not work, credentials reset"
+      [ -s "$OUT" ] || reason="principal spark_user already present, credentials reset"
       code=$(call POST /principals/spark_user/reset '{}')
       [ "$code" = 200 ] || fail "reset spark_user: HTTP $code"
-      echo "polaris-setup: principal spark_user already present, credentials reset"; write=1
+      echo "polaris-setup: $reason"; write=1
     fi ;;
   *) fail "principal spark_user: HTTP $code: $(cat "$ANSWER")" ;;
 esac
