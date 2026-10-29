@@ -110,9 +110,10 @@ Every service that uses S3 waits for `rustfs-setup` (`service_completed_successf
 
 ### 6.2 Changes to existing files
 
-- `spark/conf/catalogs/baseline.conf`: `s3.endpoint` and `s3.path-style-access` for the
-  catalog `rest`, only when `S3_ENDPOINT` is set. On AWS the rendered file does not change
-  (an empty endpoint value can break `S3FileIO`, `NOTES.md`).
+- `spark/conf/s3-endpoint/baseline.conf` (new) and `spark/entrypoint.sh`: `s3.endpoint` and
+  `s3.path-style-access` for the catalog `rest`. The entrypoint appends this template only
+  when `S3_ENDPOINT` is set. On AWS the rendered file does not change (an empty endpoint
+  value can break `S3FileIO`, `NOTES.md`).
 - `.env.example`: a section "RustFS (on-premise)" with `COMPOSE_FILE` commented out,
   `RUSTFS_DATA_DIR`, `RUSTFS_ROOT_ACCESS_KEY` / `RUSTFS_ROOT_SECRET_KEY`,
   `RUSTFS_POLARIS_ACCESS_KEY` / `RUSTFS_POLARIS_SECRET_KEY`, `RUSTFS_LAB_ACCESS_KEY` /
@@ -131,6 +132,23 @@ the fallback is a documented `chown 10001` on the host directory.
 
 `make reset` (`docker compose down -v`) does not delete the bind mount. The README tells
 the user how to delete the RustFS data.
+
+### 6.4 Separate state for the variant
+
+The catalog state of the AWS stack points to AWS S3: the Polaris catalog `lab_catalog`
+(with the AWS role ARN), the Nessie tables and the `rest` catalog. `polaris-setup` does not
+change a catalog that is already present. So the RustFS variant has its own state, and the
+AWS state stays intact:
+
+| State | AWS stack | RustFS variant |
+|---|---|---|
+| Postgres data (Polaris and Nessie) | volume `pgdata` | volume `pgdata-rustfs` |
+| `rest` catalog (SQLite) | volume `rest-fixture-data` | volume `rest-fixture-data-rustfs` |
+| `spark_user` credentials | `secrets/spark_user.env` | `secrets/rustfs/spark_user.env` |
+
+The override replaces these mounts (Compose merges volumes by container path). `make up`
+creates `secrets/rustfs/` and the RustFS data directory as the host user, before Docker
+can create them as root.
 
 ## 7. Credentials and policies
 
@@ -161,7 +179,8 @@ Polaris flow:
 | `tests/rustfs-setup.sh` (new) | — | A second run of `rustfs-setup` exits 0 (idempotency). |
 | `tests/catalog-smoke.sh`, `tests/*-service.sh` | None | Each catalog works on RustFS; Polaris works with vended credentials. |
 | `tests/lint.sh`, `tests/check-no-secrets.sh` | Cover the new files | Static checks. |
-| `docker compose config` | With and without the override | Both configurations are valid. |
+| `tests/compose-variant.sh` (new, in `make lint`) | — | `docker compose config` with and without the override: both are valid, the AWS configuration has no RustFS setting, the variant has the settings of sections 6.1 and 6.4. |
+| `tests/catalog-selection.sh` | Skips on the variant | It checks the service list of the AWS stack. |
 
 Success criteria:
 
