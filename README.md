@@ -130,6 +130,7 @@ with each catalog.
   Without `PURGE`, the files stay under `polaris/`, and the VM role cannot delete them (only
   CloudShell can).
 - **Drop a baseline table with its files**: `DROP TABLE rest.<namespace>.<table> PURGE`.
+  Without `PURGE`, the files stay under `rest/`. The VM role can delete them with `aws s3 rm`.
 - **Logs**: `make logs`.
 
 ## Make targets

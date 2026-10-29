@@ -495,3 +495,16 @@ git commit -m "docs(baseline): record the Phase 4 findings and usage"
 - Authentication on the fixture (it has none; ports stay on `127.0.0.1`).
 - Phase 5 scenarios on the `rest` catalog.
 - The Nessie CLI (issue #22).
+
+## Execution notes (after review)
+
+The code blocks above are the plan as written. The code in the repository is the reference.
+
+- Task 18 (`fbad159`), Task 19 (`4f8c715`), Task 20 (`e8b6b94`): as planned.
+- Task 19: `DROP TABLE ... PURGE` on `rest` is a client-side purge. Spark drops the table
+  without purge and deletes the reachable files itself (`NOTES.md` F5).
+- Final review: `tests/spark-config.sh` reuses the rendered `nessie` configuration for the
+  "no rest block" check; spec 5.6 says "recreated" (not "restart") for the loss of the default
+  SQLite file; the README says what happens to a `rest` table dropped without `PURGE`.
+- Not changed: the purge check in `tests/catalog-smoke.sh` cannot tell an empty listing from
+  a failed listing (same as for `polaris`). The VM role can list under `rest/`.

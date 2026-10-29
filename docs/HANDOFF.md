@@ -104,8 +104,6 @@
 
 ## Open points to watch
 
-- The Phase 4 plan has no "Execution notes (after review)" section yet. If the reviews change
-  the code, add one.
 - Nessie publishes its management port on `127.0.0.1:9000`. A local MinIO (on-premise) also
   uses port 9000: map one of them to another host port.
 - Deferred: AWS CLI endpoint for on-premise S3 (`S3_ENDPOINT`), Polaris on-premise

@@ -258,14 +258,13 @@ the README and the findings into `NOTES.md`.
 Facts from the image `apache/iceberg-rest-fixture:1.10.1` (inspected on
 2026-10-29): it runs as user `iceberg` (uid 1000), it has `curl` and a
 healthcheck on `/v1/config`, it listens on 8181, and its default catalog is
-SQLite on `/tmp/iceberg_catalog.db` (lost at each container restart).
+SQLite on `/tmp/iceberg_catalog.db` (lost when the container is recreated).
 
 - Persistence: `CATALOG_URI=jdbc:sqlite:/home/iceberg/catalog.db` on a
   named volume `rest-fixture-data` mounted at `/home/iceberg` (the home of the
   user `iceberg`; a subfolder does not exist in the image, so Docker would create
-  it as root). A named
-  volume on a directory that the image owns gets the same owner, so the user
-  `iceberg` can write it. Stopping the profile keeps the catalog;
+  it as root). A named volume on a directory that the image owns gets the same
+  owner, so the user `iceberg` can write it. Stopping the profile keeps the catalog;
   `make reset` deletes it.
 - Warehouse `s3://${S3_BUCKET}/rest/` with `S3FileIO`. S3 credentials: AWS
   default credential chain (VM role through IMDSv2), and the optional static

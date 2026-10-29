@@ -37,6 +37,6 @@ assert_not_contains "$polaris" '${POLARIS_SPARK_CLIENT' "polaris credentials ren
 
 rest=$(conf baseline)
 assert_contains "$rest" "spark.sql.catalog.rest.uri    http://rest-fixture:8181" "rest block with baseline"
-assert_not_contains "$(conf nessie)" "spark.sql.catalog.rest" "no rest block with nessie only"
+assert_not_contains "$nessie" "spark.sql.catalog.rest" "no rest block with nessie only"
 
 finish
