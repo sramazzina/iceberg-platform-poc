@@ -43,6 +43,11 @@ cleanup() {
   local out
   out=$(sql "$(printf "$drop_sql" "$table")" 2>&1)
   if [[ $out == *"spark-sql failed"* || -z $(docker compose ps -q --status running spark) ]]; then
+    if ((!own_files)); then
+      # The VM role cannot delete these files: they stay until the user removes them.
+      echo "  FAIL - could not drop $table with PURGE; delete ${root:-its files} from CloudShell"
+      exit 1
+    fi
     echo "  warn - could not drop $table; S3 files kept"
     return 0
   fi
