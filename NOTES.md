@@ -87,6 +87,13 @@ Each entry: what the requirement says, what the lab does, and why.
   JSON fields it needs with `sed`.
 - Why: `apk add jq` at every start needs network access and installs an unpinned version.
 
+### D14 — Phases 5 and 6 deferred
+- Requirement (section 8): Phase 5 writes the scenario notebooks and Phase 6 writes
+  `EVALUATION.md`. Section 10 lists both as completion criteria.
+- Lab: Phases 5 and 6 are deferred to a later stage (user decision, 2026-10-29). The lab has
+  no scenario notebooks, no `make scenarios` and no `EVALUATION.md`.
+- Why: the current scope is to build the platform for study, not to compare the catalogs.
+
 ## Findings
 
 ### F1 — Nessie S3 credentials (Nessie 0.109.0, checked 2026-10-28)

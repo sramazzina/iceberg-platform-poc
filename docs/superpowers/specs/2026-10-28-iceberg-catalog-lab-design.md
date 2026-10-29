@@ -3,6 +3,10 @@
 - Date: 2026-10-28
 - Source requirements: `docs/req/prompt-agente-lab-iceberg-polaris-nessie.md` (Italian)
 - Status: approved in brainstorming session
+- Scope change (2026-10-29): Phase 5 (scenarios) and Phase 6 (evaluation) are
+  deferred to a later stage. The current scope is to build the platform for
+  study, not to compare the catalogs (`NOTES.md` D14). The sections that
+  describe them stay as the design for that later stage.
 
 ## 1. Goal
 
@@ -57,7 +61,7 @@ Layout:
 
 ```text
 .
-├── README.md  VERSIONS.md  NOTES.md  EVALUATION.md
+├── README.md  VERSIONS.md  NOTES.md  EVALUATION.md (deferred, Phase 6)
 ├── .env.example  .gitignore  docker-compose.yml  Makefile
 ├── aws/
 │   ├── iam/vm-role-policy.json
@@ -70,7 +74,7 @@ Layout:
 ├── spark/
 │   ├── Dockerfile  entrypoint.sh
 │   └── conf/spark-defaults.conf   # template, rendered at container start
-├── scenarios/            # 11 notebooks + lab.py helper
+├── scenarios/            # user notebooks; 11 notebooks + lab.py deferred (Phase 5)
 ├── tests/                # smoke tests
 └── secrets/              # git-ignored, written by polaris-setup
 ```
@@ -331,6 +335,9 @@ the `spark` container.
 
 ## 7. Scenarios
 
+Deferred to a later stage (2026-10-29, `NOTES.md` D14). This section is the
+design for that stage.
+
 - One notebook per scenario: `scenarios/01-basic-cycle.ipynb` …
   `scenarios/11-second-client.ipynb`, as listed in requirement phase 5.
 - `scenarios/lab.py`: runs the SQL of a scenario on the catalog that is on and
@@ -346,8 +353,8 @@ the `spark` container.
 ## 8. Makefile
 
 Targets: `up`, `down`, `reset` (removes volumes), `smoke-test`,
-`logs`, `sql-polaris`, `sql-nessie`, `sql-rest`, `nessie-cli`, `lint`,
-`scenarios`.
+`logs`, `sql-polaris`, `sql-nessie`, `sql-rest`, `nessie-cli`, `lint`.
+The target `scenarios` is deferred with Phase 5 (`NOTES.md` D14).
 There is no `up-baseline`: the user adds `baseline` to `COMPOSE_PROFILES`
 (section 5.0; deviation in `NOTES.md`).
 
@@ -359,8 +366,8 @@ There is no `up-baseline`: the user adds `baseline` to `COMPOSE_PROFILES`
   usable with both Polaris and Nessie.
 - `NOTES.md`: every deviation from the requirements and every conflict between
   the requirements and project docs.
-- `EVALUATION.md`: Polaris/Nessie comparison on the eight criteria of
-  requirement phase 6. Observed facts kept separate from documentation facts,
+- `EVALUATION.md` (deferred with Phase 6, `NOTES.md` D14): Polaris/Nessie
+  comparison on the eight criteria of requirement phase 6. Observed facts kept separate from documentation facts,
   sources cited, verification date for governance data.
 - `README.md`: the eight items of requirement section 9, with a Mermaid
   architecture diagram.
@@ -375,7 +382,8 @@ There is no `up-baseline`: the user adds `baseline` to `COMPOSE_PROFILES`
 - PR grouping:
   1. Stage 1: scaffolding, `VERSIONS.md`, `aws/` scripts.
   2. Stage 2: one PR per phase (1 Spark + Postgres, 2 Polaris, 3 Nessie,
-     4 baseline, 5 scenarios, 6 evaluation + README).
+     4 baseline, 5 scenarios, 6 evaluation + README). Phases 5 and 6 are
+     deferred (`NOTES.md` D14).
 - Planning granularity: a detailed plan for stage 1 and phase 1 now. A separate
   plan per later phase, written on the VM after the versions are verified,
   because the real versions change configuration details.
@@ -387,3 +395,7 @@ As in requirement section 10: `make up` starts cleanly on a fresh VM;
 `polaris` on and once with `nessie` on; all scenario notebooks run
 end to end; no credential in git; `VERSIONS.md`, `NOTES.md`, `EVALUATION.md`
 are filled; `aws/teardown.sh` removes every resource `setup.sh` created.
+
+For the current scope (2026-10-29, `NOTES.md` D14), the criteria about the
+scenario notebooks and `EVALUATION.md` do not apply. They apply again when
+Phases 5 and 6 start.
