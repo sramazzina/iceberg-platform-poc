@@ -16,21 +16,19 @@
 | Plan (Phase 4) | `docs/superpowers/plans/2026-10-29-phase4-baseline.md` — Tasks 18-20 |
 | Plan (Nessie CLI) | `docs/superpowers/plans/2026-10-29-nessie-cli.md` — Tasks 21-22 |
 | GitHub milestone | "S1 — Iceberg catalog lab" |
-| GitHub issues | #1-#9, #13-#15 and #17-#21, one per plan task (all done); #24-#26 (Phase 4, done); #28-#29 (Nessie CLI tasks); #22 (Nessie CLI requirement) closes with the Nessie CLI PR |
+| GitHub issues | #1-#9, #13-#15 and #17-#21, one per plan task (all done); #24-#26 (Phase 4, done); #22, #28-#29 (Nessie CLI, done); no open issue |
 | Stage 1 (AWS scripts) | Merged (PR #10) |
 | Phase 1 (Postgres, Spark image, S3 acceptance test) | Merged (PR #11) |
 | Phase 3 (Nessie) | Merged (PR #16) |
 | Phase 2 (Polaris) and optional catalogs | Merged (PR #23) |
 | Phase 4 (baseline) | Merged (PR #27) |
-| Nessie CLI | PR open (branch `nessie-cli`) |
-| Next step | After the merge of the Nessie CLI PR: write the Phase 5 plan (scenarios) |
+| Nessie CLI | Merged (PR #30) |
+| Next step | Write the Phase 5 plan (scenarios) |
 
 ## Resume here
 
-1. The Nessie CLI PR (branch `nessie-cli`) is open. The user merges it.
-2. After the merge, delete the branch `nessie-cli` locally and on the remote, then run
-   `git checkout main && git pull`.
-3. Phase 5 (scenarios): brainstorm, then write the plan with `superpowers:writing-plans`, create
+1. PR #30 (Nessie CLI) is merged and its branch is deleted. Work starts from `main`.
+2. Phase 5 (scenarios): brainstorm, then write the plan with `superpowers:writing-plans`, create
    one issue per task, and execute with subagent-driven development. Read the code, not the old
    plans: the plans have "Execution notes (after review)" sections, because the reviews changed
    the code.
@@ -122,6 +120,5 @@
 
 ```text
 Read docs/HANDOFF.md, CLAUDE.md, NOTES.md, README.md and the spec. Then follow
-"Resume here": check the state of the Nessie CLI PR, then start the Phase 5 (scenarios)
-brainstorming.
+"Resume here": start the Phase 5 (scenarios) brainstorming.
 ```
