@@ -41,6 +41,17 @@ ENV PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/py4j-src.zip \
     PATH=/opt/spark/bin:$PATH \
     HOME=/workspace
 
+# Nessie CLI uber jar from Maven Central, checked against the pinned SHA-1. It stays out of
+# the Spark classpath; the wrapper `nessie` runs it.
+ARG NESSIE_CLI_VERSION
+ARG NESSIE_CLI_SHA1
+RUN set -eux; \
+    mkdir -p /opt/nessie-cli; \
+    curl -fsSLo /opt/nessie-cli/nessie-cli.jar \
+      "https://repo1.maven.org/maven2/org/projectnessie/nessie/nessie-cli/${NESSIE_CLI_VERSION}/nessie-cli-${NESSIE_CLI_VERSION}.jar"; \
+    echo "${NESSIE_CLI_SHA1}  /opt/nessie-cli/nessie-cli.jar" | sha1sum -c -
+COPY nessie-cli.sh /usr/local/bin/nessie
+
 # The spark user gets the host UID, so files saved in bind mounts stay editable on the host.
 ARG LAB_UID=1000
 RUN groupmod -g "$LAB_UID" spark \

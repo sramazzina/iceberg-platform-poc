@@ -24,4 +24,9 @@ assert_eq "$tables" "objs2:nessie,refs2:nessie" "JDBC2 version store tables owne
 config=$(nessie_get http://127.0.0.1:19120/iceberg/v1/config | jq -r '.defaults.prefix + " " + .defaults.warehouse' 2>&1 || true)
 assert_eq "$config" "main s3://$S3_BUCKET/nessie" "Iceberg REST prefix main and warehouse on nessie/"
 
+refs=$(docker compose exec -T spark nessie -q --stdout -c "LIST REFERENCES" 2>&1 || echo "nessie CLI failed")
+assert_contains "$refs" "BRANCH main @" "the Nessie CLI in the spark container lists the branch main"
+refs=$(docker compose exec -T spark nessie -q --stdout -uhttp://nessie:19120/api/v2 -c "LIST REFERENCES" 2>&1 || echo "nessie CLI failed")
+assert_contains "$refs" "BRANCH main @" "the Nessie CLI accepts an explicit -u (not doubled)"
+
 finish

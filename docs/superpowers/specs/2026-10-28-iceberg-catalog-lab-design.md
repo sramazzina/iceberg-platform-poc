@@ -156,13 +156,34 @@ Every version is pinned in `.env`. The tag `latest` is never used.
   `COMPOSE_PROFILES`, so the running services always match `.env`.
 - Stopping a catalog keeps its data: its Postgres database and its S3 prefix stay.
 
-### 5.0.1 Nessie CLI (requested 2026-10-29, later phase)
+### 5.0.1 Nessie CLI (requested 2026-10-29, designed 2026-10-29, issue #22)
 
-- The lab includes the Nessie CLI, for the Nessie native API (branches, tags, commits,
-  merges) from the command line. Issue #22 lists the open points: distribution and
-  license, where it runs (spark image or a service in the profile `nessie`), pinned
-  version, Makefile target, test.
-- Not part of Phase 2. The design and the plan come in a later phase.
+The lab includes the Nessie CLI, for the Nessie native API (branches, tags, commits,
+merges) from the command line.
+
+Facts verified on 2026-10-29: the CLI 0.109.0 is published on Maven Central as the
+uber jar `org.projectnessie.nessie:nessie-cli:0.109.0` (about 105 MB, SHA-1 published)
+and as the image `ghcr.io/projectnessie/nessie-cli`. License: Apache-2.0 (POM of the
+parent `org.projectnessie.nessie:nessie`). The jar runs on the Java 17 of the `spark`
+image. `nessie-cli -q --stdout -u http://nessie:19120/api/v2 -c "LIST REFERENCES"`
+prints ` BRANCH main @ <hash>`.
+
+- Where it runs: in the `spark` image (user decision). The CLI is then also available in
+  the JupyterLab terminal, next to the notebooks.
+- `spark/Dockerfile` downloads `nessie-cli-${NESSIE_CLI_VERSION}.jar` from Maven Central
+  and checks it against `NESSIE_CLI_SHA1`, as for the Iceberg jars. The jar goes to
+  `/opt/nessie-cli/`, not to `$SPARK_HOME/jars`: it is an uber jar, and its classes must
+  not be on the Spark classpath.
+- A wrapper `/usr/local/bin/nessie` runs the jar with `--no-up-to-date-check` (no call to
+  the internet). When the arguments have no `-u`/`--uri`, it adds
+  `-u http://nessie:19120/api/v2`.
+- `.env.example` pins `NESSIE_CLI_VERSION` (equal to the server version in
+  `NESSIE_IMAGE`) and `NESSIE_CLI_SHA1`. `VERSIONS.md` records them.
+- `make nessie-cli` opens the CLI REPL in the `spark` container. The catalog `nessie`
+  must be on.
+- Tests: `tests/spark-image.sh` checks `nessie --version` (no Nessie needed).
+  `tests/nessie-service.sh` checks that the CLI in the `spark` container lists the
+  branch `main`, so `make smoke-test` covers it when Nessie is on.
 
 ### 5.1 `polaris-setup`
 
@@ -325,7 +346,8 @@ the `spark` container.
 ## 8. Makefile
 
 Targets: `up`, `down`, `reset` (removes volumes), `smoke-test`,
-`logs`, `sql-polaris`, `sql-nessie`, `sql-rest`, `lint`, `scenarios`.
+`logs`, `sql-polaris`, `sql-nessie`, `sql-rest`, `nessie-cli`, `lint`,
+`scenarios`.
 There is no `up-baseline`: the user adds `baseline` to `COMPOSE_PROFILES`
 (section 5.0; deviation in `NOTES.md`).
 

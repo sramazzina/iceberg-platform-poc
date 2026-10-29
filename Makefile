@@ -1,4 +1,4 @@
-.PHONY: lint test-aws up down reset logs sql-nessie sql-polaris sql-rest smoke-test
+.PHONY: lint test-aws up down reset logs sql-nessie sql-polaris sql-rest nessie-cli smoke-test
 
 lint:
 	tests/lint.sh
@@ -36,6 +36,9 @@ sql-polaris:
 
 sql-rest:
 	docker compose exec spark spark-sql --conf spark.sql.defaultCatalog=rest
+
+nessie-cli:
+	docker compose exec spark nessie
 
 smoke-test:
 	tests/smoke-test.sh

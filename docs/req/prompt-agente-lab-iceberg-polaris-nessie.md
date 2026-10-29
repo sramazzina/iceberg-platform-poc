@@ -54,7 +54,7 @@ L'utente deve poter eseguire gli stessi scenari di test sui due cataloghi e conf
 
 I cataloghi (`polaris`, `nessie`, `rest-fixture`) sono spenti di default. L'utente sceglie quali accendere con la variabile `COMPOSE_PROFILES` in `.env` (profili Compose `polaris`, `nessie`, `baseline`). Il laboratorio deve contenere tutti i cataloghi, ma non deve farli girare insieme: per i test basta un catalogo acceso alla volta. Spegnere un catalogo non cancella i suoi dati.
 
-Il laboratorio include anche la Nessie CLI, per usare l'API nativa di Nessie (branch, tag, commit, merge) dalla riga di comando. Questo requisito è per una fase successiva (issue #22): la progettazione e il piano vengono fatti in quella fase.
+Il laboratorio include anche la Nessie CLI, per usare l'API nativa di Nessie (branch, tag, commit, merge) dalla riga di comando. La CLI è nell'immagine `spark` (comando `nessie`, target `make nessie-cli`). Issue #22.
 
 ### 5.2 Immagine Spark
 
@@ -131,7 +131,7 @@ iceberg-catalog-lab/
 └── tests/                # script di smoke test
 ```
 
-Il `Makefile` deve avere almeno questi target: `up`, `up-baseline`, `down`, `reset` (elimina i volumi), `smoke-test`, `logs`, `sql-polaris`, `sql-nessie`.
+Il `Makefile` deve avere almeno questi target: `up`, `up-baseline`, `down`, `reset` (elimina i volumi), `smoke-test`, `logs`, `sql-polaris`, `sql-nessie`, `nessie-cli`.
 
 ## 8. Fasi di realizzazione
 

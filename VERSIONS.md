@@ -14,6 +14,7 @@ The tag `latest` is never used.
 | Apache Polaris | 1.8.0 | `POLARIS_IMAGE=apache/polaris:1.8.0` | <https://github.com/apache/polaris/releases/tag/apache-polaris-1.8.0> |
 | Apache Polaris admin tool | 1.8.0 | `POLARIS_ADMIN_TOOL_IMAGE=apache/polaris-admin-tool:1.8.0` | <https://hub.docker.com/r/apache/polaris-admin-tool/tags> |
 | Project Nessie | 0.109.0 | `NESSIE_IMAGE=ghcr.io/projectnessie/nessie:0.109.0` | <https://github.com/projectnessie/nessie/releases/tag/nessie-0.109.0> |
+| Nessie CLI | 0.109.0 (uber jar in the `spark` image) | `NESSIE_CLI_VERSION`, `NESSIE_CLI_SHA1` | <https://repo1.maven.org/maven2/org/projectnessie/nessie/nessie-cli/0.109.0/> |
 | Iceberg REST fixture | 1.10.1 | `REST_FIXTURE_IMAGE=apache/iceberg-rest-fixture:1.10.1` | <https://hub.docker.com/r/apache/iceberg-rest-fixture/tags> |
 | PostgreSQL | 18.6 | `POSTGRES_IMAGE=postgres:18.6` | <https://hub.docker.com/_/postgres> |
 | curl + jq job image | alpine/curl 8.22.0 (jq added with `apk`) | `POLARIS_SETUP_IMAGE=alpine/curl:8.22.0` | <https://hub.docker.com/r/alpine/curl/tags> |
@@ -38,6 +39,7 @@ The tag `latest` is never used.
 | PyIceberg 0.12.0 Python requirement | `>=3.10` | <https://pypi.org/project/pyiceberg/0.12.0/> |
 | JupyterLab 4.6.4 Python requirement | `>=3.10` | <https://pypi.org/project/jupyterlab/4.6.4/> |
 | REST fixture tag for Iceberg 1.11 | Not published; 1.10.1 is the newest versioned tag | <https://hub.docker.com/r/apache/iceberg-rest-fixture/tags> |
+| Nessie CLI 0.109.0 license and Java | Apache-2.0; runs on the Java 17 of the `spark` image (checked 2026-10-29) | <https://repo1.maven.org/maven2/org/projectnessie/nessie/nessie/0.109.0/nessie-0.109.0.pom> |
 
 Polaris and Nessie do not document tests with Spark 4.1. They are used through the Iceberg
 REST protocol with the same Iceberg version they are built against. The smoke tests of
