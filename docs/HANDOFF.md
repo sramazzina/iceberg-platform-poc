@@ -1,7 +1,7 @@
 # Handoff — Iceberg catalog lab
 
 - Date: 2026-10-29
-- From: Claude Code session on the EC2 lab VM (Phases 1, 3, 2 and 4)
+- From: Claude Code session on the EC2 lab VM (Phases 1, 3, 2, 4 and the Nessie CLI)
 - To: the next Claude Code session on the EC2 lab VM
 
 ## Where we are
