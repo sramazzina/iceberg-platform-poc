@@ -31,8 +31,10 @@ DBeaver, use the same Thrift Server to query the Iceberg tables.
 
 - `dbt-spark` 1.11.0 (Apache-2.0) requires Python >= 3.10 and allows `pyspark` < 5. The
   `PyHive` extra installs `PyHive[hive-pure-sasl]` ~= 0.7.0 and `thrift` < 0.23.0.
-- `dbt-core` 1.12.6 (Apache-2.0). `PyHive` 0.7.0 (Apache-2.0). `thrift` (Apache-2.0).
-  `pure-sasl` 0.6.2 (MIT). `duckdb` 2.0.0 (MIT). No GPL-family license.
+- `dbt-core` 1.12.6 (Apache-2.0). `PyHive` 0.7.0 (Apache-2.0). `thrift` 0.22.0
+  (Apache-2.0). `pure-sasl` 0.6.2 (MIT). No GPL-family license.
+- `duckdb` (MIT): 2.0.0 requires Python >= 3.11. The Spark image has Python 3.10, so the
+  lab pins `duckdb` 1.5.6, the last release with Python 3.10 wheels (x86_64 and aarch64).
 - `dbt-spark` uses a two-level namespace: "always schema, never database". The catalog is
   not part of the model name. Each target selects the catalog with the Spark property
   `spark.sql.defaultCatalog`.
