@@ -31,6 +31,12 @@ echo "compose variant: AWS stack"
 assert_eq "$(q "$aws" '.services | has("rustfs")')" "false" "no rustfs service"
 assert_eq "$(src "$aws" postgres /var/lib/postgresql)" "pgdata" "postgres data on the volume pgdata"
 assert_eq "$(src "$aws" rest-fixture /home/iceberg)" "rest-fixture-data" "rest catalog on the volume rest-fixture-data"
+assert_eq "$(q "$aws" '.services["spark-thrift"].profiles | join(",")')" "thrift" "spark-thrift is in the profile thrift"
+assert_eq "$(q "$aws" '[.services["spark-thrift"].ports[] | "\(.host_ip):\(.published)->\(.target)"] | join(",")')" \
+  "127.0.0.1:10000->10000" "spark-thrift port on 127.0.0.1:10000"
+assert_eq "$(q "$aws" '.services["spark-thrift"].image')" "$(q "$aws" '.services.spark.image')" "spark-thrift uses the spark image"
+assert_eq "$(q "$aws" '.services["spark-thrift"].environment.LAB_CATALOGS')" "$(q "$aws" '.services.spark.environment.LAB_CATALOGS')" "spark-thrift renders the same catalogs as spark"
+assert_eq "$(src "$aws" spark-thrift /run/lab-secrets | sed 's#.*/##')" "secrets" "spark-thrift reads secrets"
 
 echo "compose variant: RustFS"
 assert_eq "$(q "$rustfs" '.services.rustfs.image')" "$(sed -n 's/^RUSTFS_IMAGE=//p' .env.example)" "rustfs image pinned in .env.example"
@@ -48,7 +54,7 @@ assert_eq "$(q "$rustfs" '.services["rustfs-setup"].image')" "$(sed -n 's/^RUSTF
 assert_eq "$(q "$rustfs" '.services["rustfs-setup"].depends_on.rustfs.condition')" "service_healthy" "rustfs-setup waits for a healthy rustfs"
 assert_eq "$(src "$rustfs" rustfs-setup /setup | sed 's#.*/rustfs/#rustfs/#')" "rustfs/setup" "rustfs-setup mounts rustfs/setup"
 
-for s in spark nessie rest-fixture; do
+for s in spark spark-thrift nessie rest-fixture; do
   assert_eq "$(q "$rustfs" ".services[\"$s\"].depends_on[\"rustfs-setup\"].condition")" \
     "service_completed_successfully" "$s waits for rustfs-setup"
 done
@@ -59,10 +65,13 @@ assert_eq "$(q "$rustfs" '.services.nessie.environment | "\(.NESSIE_CATALOG_SERV
 assert_eq "$(q "$rustfs" '.services["rest-fixture"].environment | "\(.CATALOG_S3_ENDPOINT) \(.CATALOG_S3_PATH__STYLE__ACCESS)"')" \
   "http://rustfs:9000 true" "rest-fixture uses the RustFS endpoint with path-style access"
 lab_key=${RUSTFS_LAB_ACCESS_KEY:-$(sed -n 's/^RUSTFS_LAB_ACCESS_KEY=//p' "$env_file")}
-for s in spark nessie rest-fixture; do
+for s in spark spark-thrift nessie rest-fixture; do
   assert_eq "$(q "$rustfs" ".services[\"$s\"].environment.AWS_ACCESS_KEY_ID")" "$lab_key" "$s uses the keys of the user lab"
 done
 assert_eq "$(src "$rustfs" spark /run/lab-secrets | sed 's#.*/secrets/#secrets/#')" "secrets/rustfs" "spark reads secrets/rustfs"
+assert_eq "$(q "$rustfs" '.services["spark-thrift"].environment | "\(.S3_ENDPOINT) \(.S3_PATH_STYLE_ACCESS) \(.AWS_ENDPOINT_URL)"')" \
+  "http://rustfs:9000 true http://rustfs:9000" "spark-thrift uses the RustFS endpoint with path-style access"
+assert_eq "$(src "$rustfs" spark-thrift /run/lab-secrets | sed 's#.*/secrets/#secrets/#')" "secrets/rustfs" "spark-thrift reads secrets/rustfs"
 assert_eq "$(q "$aws" '.services.spark.environment.AWS_ENDPOINT_URL')" "null" "AWS stack: no AWS_ENDPOINT_URL"
 
 polaris_key=${RUSTFS_POLARIS_ACCESS_KEY:-$(sed -n 's/^RUSTFS_POLARIS_ACCESS_KEY=//p' "$env_file")}

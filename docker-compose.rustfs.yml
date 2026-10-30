@@ -73,6 +73,19 @@ services:
     volumes:
       - ./secrets/rustfs:/run/lab-secrets:ro
 
+  spark-thrift:
+    depends_on:
+      rustfs-setup:
+        condition: service_completed_successfully
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PATH_STYLE_ACCESS: "true"
+      AWS_ENDPOINT_URL: http://rustfs:9000
+      AWS_ACCESS_KEY_ID: ${RUSTFS_LAB_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_LAB_SECRET_KEY}
+    volumes:
+      - ./secrets/rustfs:/run/lab-secrets:ro
+
   # Own state for the variant: the catalogs of the AWS stack point to AWS S3 (spec section 6.4).
   postgres:
     volumes:

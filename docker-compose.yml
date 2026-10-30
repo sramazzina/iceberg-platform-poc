@@ -160,7 +160,7 @@ services:
       - ./secrets:/secrets
 
   spark:
-    build:
+    build: &spark-build
       context: ./spark
       args:
         SPARK_BASE_IMAGE: ${SPARK_BASE_IMAGE}
@@ -174,7 +174,7 @@ services:
         LAB_UID: ${LAB_UID:-1000}
     image: iceberg-lab-spark:${ICEBERG_VERSION}
     init: true
-    depends_on:
+    depends_on: &spark-depends-on
       # required: false lets spark start when the catalog is off.
       nessie:
         condition: service_healthy
@@ -185,7 +185,7 @@ services:
       rest-fixture:
         condition: service_healthy
         required: false
-    environment:
+    environment: &spark-environment
       S3_BUCKET: ${S3_BUCKET}
       AWS_REGION: ${AWS_REGION}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
@@ -207,6 +207,43 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
+
+  # Spark Thrift Server (HiveServer2 protocol) for dbt and external JDBC clients (spec
+  # 2026-10-30-dbt-elt, section 6.1). Same image, entrypoint and catalogs as spark.
+  # No authentication (NOSASL): the port is published on 127.0.0.1 only. The default mode
+  # needs SASL, and PyHive then needs thrift_sasl (NOTES F7, S6).
+  spark-thrift:
+    profiles: [thrift]
+    build: *spark-build
+    image: iceberg-lab-spark:${ICEBERG_VERSION}
+    init: true
+    depends_on: *spark-depends-on
+    environment: *spark-environment
+    # Working directory of the Thrift Server: writable by the spark user.
+    working_dir: /opt/spark/work-dir
+    command:
+      - spark-submit
+      - --class
+      - org.apache.spark.sql.hive.thriftserver.HiveThriftServer2
+      - --name
+      - spark-thrift
+      - spark-internal
+      - --hiveconf
+      - hive.server2.thrift.port=10000
+      - --hiveconf
+      - hive.server2.thrift.bind.host=0.0.0.0
+      - --hiveconf
+      - hive.server2.authentication=NOSASL
+    ports:
+      - "127.0.0.1:10000:10000"
+    volumes:
+      - ./secrets:/run/lab-secrets:ro
+    healthcheck:
+      # A TCP check: a beeline call starts a JVM. tests/thrift-service.sh runs real SQL.
+      test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/10000"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
 
 volumes:
   pgdata:

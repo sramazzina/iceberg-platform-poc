@@ -8,6 +8,8 @@ tests/postgres-init.sh
 # The RustFS variant: rustfs-setup must be idempotent.
 if docker compose config --services | grep -qx rustfs; then tests/rustfs-setup.sh; fi
 tests/s3-access.sh
+# The Spark Thrift Server (profile thrift).
+if docker compose config --services | grep -qx spark-thrift; then tests/thrift-service.sh; fi
 
 services=$(docker compose config --services)
 ran=0

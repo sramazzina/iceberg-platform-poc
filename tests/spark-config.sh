@@ -38,6 +38,11 @@ assert_not_contains "$unknown" "command failed" "a profile without a template is
 assert_not_contains "$unknown" "no Spark catalog" "the warning is not in the rendered file"
 assert_contains "$(conf_err no-such-catalog)" "no Spark catalog for profile 'no-such-catalog'" "a profile without a template gives a warning on stderr"
 
+thrift=$(conf thrift)
+assert_not_contains "$thrift" "command failed" "the profile thrift renders"
+assert_not_contains "$thrift" "spark.sql.catalog." "no catalog block for the profile thrift"
+assert_not_contains "$(conf_err thrift)" "no Spark catalog" "no warning for the profile thrift"
+assert_contains "$(conf nessie,thrift)" "spark.sql.catalog.nessie.uri" "nessie block with nessie,thrift"
 polaris=$(conf polaris)
 assert_contains "$polaris" "spark.sql.catalog.polaris.uri                                 http://polaris:8181/api/catalog" "polaris block with polaris"
 assert_not_contains "$polaris" '${POLARIS_SPARK_CLIENT' "polaris credentials rendered"
