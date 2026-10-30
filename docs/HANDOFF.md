@@ -1,9 +1,10 @@
 # Handoff — Iceberg catalog lab
 
-- Date: 2026-10-29 (evening)
+- Date: 2026-10-30
 - From: Claude Code session on the user's workstation (Windows, WSL2, Docker Desktop):
-  market analysis, design, plan and Task 23 of the on-premise variant with RustFS
-- To: the next Claude Code session on the **same workstation**
+  Tasks 24-28 of the on-premise variant with RustFS, final review, push and PR
+- To: the next Claude Code session on the **same workstation** (or on the EC2 VM for the
+  AWS regression)
 
 ## Where we are
 
@@ -13,58 +14,52 @@
 | Lab design spec | `docs/superpowers/specs/2026-10-28-iceberg-catalog-lab-design.md` |
 | Stage 1, Phases 1-4, Nessie CLI | Merged (PRs #10, #11, #16, #23, #27, #30, #32) |
 | Phase 5 (scenarios), Phase 6 (evaluation) | Deferred (`NOTES.md` D14) |
-| **On-premise variant with RustFS** | **In progress** on the local branch `feat/rustfs-onprem` (not pushed) |
-| RustFS spec | `docs/superpowers/specs/2026-10-29-rustfs-onprem-design.md` (on the branch; approved) |
+| **On-premise variant with RustFS** | **Implementation complete**, PR **#39** open (branch `feat/rustfs-onprem`, pushed) |
+| RustFS spec | `docs/superpowers/specs/2026-10-29-rustfs-onprem-design.md` (on the branch) |
 | RustFS plan | `docs/superpowers/plans/2026-10-29-rustfs-onprem.md` (on the branch) — Tasks 23-28 |
-| GitHub issues | #33 (T23, done, checklist ticked), #34 (T24), #35 (T25), #36 (T26), #37 (T27), #38 (T28) — open |
-| One PR for #33-#38 | Not opened yet (open it last) |
+| GitHub issues | #33-#38, all closed by PR #39 on merge. All checklists ticked, except one item of #37: the AWS regression |
+| Final review of the branch | Done ("ready with minor fixes"); fixes in `434127c` |
 
-Commits on `feat/rustfs-onprem` (local only):
+Commits on `feat/rustfs-onprem`: spec `f7f1f5d`, plan `02c8a4d` and `36c603d`, T23 `321deeb`
+and `dcfea72`, T24 `dae348c`, T25 `7c847d2`, T26 `bdbe305`, T27 `d52ecc3`, T28 `8d2f0c3`,
+final review fixes `434127c`.
 
-| Commit | Content |
-|---|---|
-| `f7f1f5d` | Spec |
-| `02c8a4d` | Plan, spec update (own state of the variant) |
-| `321deeb` | Task 23: `docker-compose.rustfs.yml` (service `rustfs`, own volumes), `tests/compose-variant.sh`, Makefile, `.env.example`, `.gitignore` |
-| `dcfea72` | Task 23 review fixes |
-| `36c603d` | Plan: section "Execution environment" (WSL2 workstation) |
-
-Task 23 passed the spec review and the code-quality review (approve with minor; the minor
-fixes are in `dcfea72`).
+Findings of the execution (recorded in `NOTES.md` F6 on the branch):
+- RustFS accepts only S3 ARNs as policy resources. The `sts:AssumeRole` statement of
+  `rustfs/setup/policy-polaris.json` has no `Resource`; AssumeRole works with it.
+- Polaris adds a KMS statement to the session policy, and RustFS rejects it.
+  `polaris/setup/setup.sh` sets `kmsUnavailable: true` only when `S3_ENDPOINT` is set.
+- Nessie 0.109.0 gives `s3.path-style-access` to clients: no Nessie fallback template.
 
 ## Resume here
 
-1. `git checkout feat/rustfs-onprem`. Work from this branch.
-2. Read the plan section **"Execution environment (changed on 2026-10-29, after Task 23)"**
-   first. It overrides the "Conventions" section: the plan was written for the EC2 VM, but
-   execution runs on this workstation.
-3. Continue with **Task 24** (`rustfs-setup`, issue #34), then Tasks 25-28, with
-   `superpowers:subagent-driven-development`: one implementer subagent (`model: "sonnet"`) per
-   task, then a spec review and a code-quality review (main model). Tick the issue checklist
-   after each task.
-4. The subagents read the task text from the plan by line range: the header and the
-   "Execution environment", "Facts", "Conventions" and "File map" sections, plus the lines
-   of their task (`grep -n '^## ' <plan>` gives the ranges).
-5. After Task 28: final review of the whole branch, push the batch, open one PR with
-   `Closes #33` … `Closes #38`. The PR body must say that the AWS regression (Task 27 Step 3)
-   is not run yet: the user runs it on the EC2 VM before the merge.
+1. The user runs the AWS regression (plan, Task 27 Step 3) on the EC2 VM, on the branch
+   `feat/rustfs-onprem`: `tests/catalog-selection.sh`,
+   `COMPOSE_PROFILES=nessie,polaris,baseline make up`,
+   `COMPOSE_PROFILES=nessie,polaris,baseline make smoke-test`, `tests/spark-config.sh`,
+   `make lint`. Then `make up` to restore the `.env` selection.
+2. If the regression passes: tick the third item of issue #37 and update the PR #39 test
+   plan. If it fails: fix on the branch (collect the fixes, push them as one batch).
+3. Check the CI of PR #39. The user merges; never merge yourself.
+4. After the user confirms the merge: delete the branch locally and on the remote,
+   `git checkout main && git pull`, then update this file.
 
 ## State of this workstation
 
 - Windows, WSL2 (kernel `6.18.33.2-microsoft-standard-WSL2`), Docker Desktop 29.9.2,
   20 CPUs, 32 GB. No AWS credentials, no AWS stack.
-- `.env` is a **local** file for the RustFS variant (made from `.env.example` on
-  2026-10-29): `COMPOSE_FILE=docker-compose.yml:docker-compose.rustfs.yml`,
+- The workstation shut down unexpectedly on 2026-10-30. After a restart, start Docker
+  Desktop (WSL integration) before any `docker` or `make` command.
+- `.env` is a **local** file for the RustFS variant: `COMPOSE_FILE=docker-compose.yml:docker-compose.rustfs.yml`,
   `S3_BUCKET=iceberg-lab`, `COMPOSE_PROFILES=` (no catalog), random local passwords and
   keys, no AWS value. Claude may change its lines; never print it.
-- The variant runs: `postgres`, `rustfs`, `spark` (all healthy). `rustfs-setup` does not
-  exist yet (Task 24), so the bucket and the users do not exist yet.
-- `data/rustfs/` (RustFS data, owned by uid 1000) and `secrets/rustfs/` exist. Both are
-  git-ignored on the branch (`/data/`, `secrets/`). On `main`, `data/` shows as untracked.
-- Docker volumes: `pgdata-rustfs` (variant) and `pgdata` (made by one switch test to the AWS
-  configuration; empty catalogs).
-- The scratch file `rustfs-lab.env` of the previous session is gone; the local `.env`
-  replaces it.
+- Last state of the variant: `postgres`, `rustfs`, `spark`. The bucket, the users `polaris`
+  and `lab`, `lab_catalog` and `secrets/rustfs/spark_user.env` exist. The catalogs hold no
+  table (only the empty namespace `smoke`).
+- `data/rustfs/` and `secrets/rustfs/` exist (git-ignored on the branch). On `main`, `data/`
+  shows as untracked.
+- Docker volumes: `pgdata-rustfs`, `rest-fixture-data-rustfs` (variant) and `pgdata` (one
+  switch test to the AWS configuration; empty catalogs).
 
 ## State of the EC2 VM (unchanged since the previous handoff)
 
@@ -127,12 +122,9 @@ fixes are in `dcfea72`).
 
 ## Open points to watch
 
-- Task 25: Nessie may not give `s3.path-style-access` to clients. The plan has the fallback
-  (`spark/conf/s3-endpoint/nessie.conf`).
-- Task 26: RustFS rejects a session policy over 2048 bytes; Polaris may need `stsEndpoint`.
-  The plan lists the checks in order.
-- RustFS issue rustfs/rustfs#2766 (`DeleteObjects` and the bucket ARN): report before you
-  change a policy.
+- `rustfs-setup` is verified only for a second run with the same values. A change of a
+  `RUSTFS_*_KEY` value or of `S3_BUCKET` is not verified (README, "Data directory").
+- The variant is not verified on Linux with Docker Engine and on macOS.
 - The RustFS log warns that it cannot write `/logs` when it runs as `LAB_UID`; it logs to
   stdout. Harmless.
 - From the AWS work: Nessie management port `127.0.0.1:9000` (RustFS uses host ports
@@ -142,7 +134,6 @@ fixes are in `dcfea72`).
 ## Kick-off prompt for the next session
 
 ```text
-Read docs/HANDOFF.md (on main), then git checkout feat/rustfs-onprem and read the plan
-docs/superpowers/plans/2026-10-29-rustfs-onprem.md, section "Execution environment" first.
-Continue with Task 24 as described in "Resume here".
+Read docs/HANDOFF.md (on main). PR #39 (RustFS variant) is open. Follow "Resume here":
+ask the user for the result of the AWS regression on the EC2 VM.
 ```
