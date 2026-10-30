@@ -16,6 +16,8 @@ The tag `latest` is never used.
 | Project Nessie | 0.109.0 | `NESSIE_IMAGE=ghcr.io/projectnessie/nessie:0.109.0` | <https://github.com/projectnessie/nessie/releases/tag/nessie-0.109.0> |
 | Nessie CLI | 0.109.0 (uber jar in the `spark` image) | `NESSIE_CLI_VERSION`, `NESSIE_CLI_SHA1` | <https://repo1.maven.org/maven2/org/projectnessie/nessie/nessie-cli/0.109.0/> |
 | Iceberg REST fixture | 1.10.1 | `REST_FIXTURE_IMAGE=apache/iceberg-rest-fixture:1.10.1` | <https://hub.docker.com/r/apache/iceberg-rest-fixture/tags> |
+| RustFS | 1.0.4 | `RUSTFS_IMAGE=rustfs/rustfs:1.0.4` | <https://github.com/rustfs/rustfs/releases/tag/1.0.4>, <https://hub.docker.com/r/rustfs/rustfs/tags> |
+| RustFS CLI `rc` | 0.1.36 | `RUSTFS_RC_IMAGE=rustfs/rc:v0.1.36` | <https://github.com/rustfs/cli/releases>, <https://hub.docker.com/r/rustfs/rc/tags> |
 | PostgreSQL | 18.6 | `POSTGRES_IMAGE=postgres:18.6` | <https://hub.docker.com/_/postgres> |
 | curl + jq job image | alpine/curl 8.22.0 (jq added with `apk`) | `POLARIS_SETUP_IMAGE=alpine/curl:8.22.0` | <https://hub.docker.com/r/alpine/curl/tags> |
 | AWS CLI v2 | 2.39.0 | `AWSCLI_VERSION` | <https://raw.githubusercontent.com/aws/aws-cli/v2/CHANGELOG.rst> |
@@ -25,6 +27,8 @@ The tag `latest` is never used.
 | pandas | 2.3.3 (last release for Python 3.10) | `spark/requirements.txt` | <https://pypi.org/project/pandas/2.3.3/> |
 | pyarrow | 25.0.1 (last release for Python 3.10) | `spark/requirements.txt` | <https://pypi.org/project/pyarrow/25.0.1/> |
 | requests | 2.34.2 | `spark/requirements.txt` | <https://pypi.org/project/requests/2.34.2/> |
+
+RustFS and `rc` were verified on 2026-10-29 (on-premise variant).
 
 ## Compatibility
 
