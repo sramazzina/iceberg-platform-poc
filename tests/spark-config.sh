@@ -5,9 +5,16 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/tests/lib/assert.sh"
 cd "$ROOT"
 
-# conf CATALOGS: the rendered spark-defaults.conf for LAB_CATALOGS=CATALOGS.
+# conf CATALOGS: the rendered spark-defaults.conf for LAB_CATALOGS=CATALOGS, on AWS (no endpoint).
 conf() {
-  docker compose run --rm --no-deps -T -e LAB_CATALOGS="$1" spark \
+  docker compose run --rm --no-deps -T -e LAB_CATALOGS="$1" -e S3_ENDPOINT= spark \
+    cat /opt/spark/conf/spark-defaults.conf 2>/dev/null || echo "command failed"
+}
+
+# conf_endpoint CATALOGS: the same, with an S3-compatible endpoint.
+conf_endpoint() {
+  docker compose run --rm --no-deps -T -e LAB_CATALOGS="$1" \
+    -e S3_ENDPOINT=http://rustfs:9000 -e S3_PATH_STYLE_ACCESS=true spark \
     cat /opt/spark/conf/spark-defaults.conf 2>/dev/null || echo "command failed"
 }
 
@@ -38,5 +45,10 @@ assert_not_contains "$polaris" '${POLARIS_SPARK_CLIENT' "polaris credentials ren
 rest=$(conf baseline)
 assert_contains "$rest" "spark.sql.catalog.rest.uri    http://rest-fixture:8181" "rest block with baseline"
 assert_not_contains "$nessie" "spark.sql.catalog.rest" "no rest block with nessie only"
+assert_not_contains "$rest" "spark.sql.catalog.rest.s3.endpoint" "no S3 endpoint for rest on AWS"
+rest_endpoint=$(conf_endpoint baseline)
+assert_contains "$rest_endpoint" "spark.sql.catalog.rest.s3.endpoint            http://rustfs:9000" "S3 endpoint for rest with S3_ENDPOINT"
+assert_contains "$rest_endpoint" "spark.sql.catalog.rest.s3.path-style-access   true" "path-style access for rest with S3_ENDPOINT"
+assert_not_contains "$(conf_endpoint nessie)" ".s3.endpoint" "no S3 endpoint template for nessie (Nessie gives it to clients)"
 
 finish

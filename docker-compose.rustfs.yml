@@ -48,12 +48,45 @@ services:
     volumes:
       - ./rustfs/setup:/setup:ro
 
+  # S3 clients of the user lab (spec section 7): nessie/ and rest/, only list on polaris/.
+  nessie:
+    depends_on:
+      rustfs-setup:
+        condition: service_completed_successfully
+    environment:
+      NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_ENDPOINT: http://rustfs:9000
+      NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_PATH_STYLE_ACCESS: "true"
+      AWS_ACCESS_KEY_ID: ${RUSTFS_LAB_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_LAB_SECRET_KEY}
+
+  spark:
+    depends_on:
+      rustfs-setup:
+        condition: service_completed_successfully
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PATH_STYLE_ACCESS: "true"
+      # The AWS CLI in the container uses RustFS too.
+      AWS_ENDPOINT_URL: http://rustfs:9000
+      AWS_ACCESS_KEY_ID: ${RUSTFS_LAB_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_LAB_SECRET_KEY}
+    volumes:
+      - ./secrets/rustfs:/run/lab-secrets:ro
+
   # Own state for the variant: the catalogs of the AWS stack point to AWS S3 (spec section 6.4).
   postgres:
     volumes:
       - pgdata-rustfs:/var/lib/postgresql
 
   rest-fixture:
+    depends_on:
+      rustfs-setup:
+        condition: service_completed_successfully
+    environment:
+      CATALOG_S3_ENDPOINT: http://rustfs:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      AWS_ACCESS_KEY_ID: ${RUSTFS_LAB_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_LAB_SECRET_KEY}
     volumes:
       - rest-fixture-data-rustfs:/home/iceberg
 
