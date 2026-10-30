@@ -205,6 +205,38 @@ Each entry: what the requirement says, what the lab does, and why.
 - `rustfs/rustfs#2766` (`DeleteObjects` and the bucket ARN) did not occur: `DROP TABLE ...
   PURGE` works on all catalogs.
 
+### F7 — Spark Thrift Server, dbt-spark and DuckDB (checked 2026-10-30)
+
+All checks ran on the RustFS variant (local workstation, WSL2 with Docker Desktop).
+
+- S1: the base image `apache/spark:4.1.3-scala2.13-java17-python3-ubuntu` has
+  `spark-hive-thriftserver_2.13-4.1.3.jar` and `bin/beeline`. Confirmed.
+- S2: `HiveThriftServer2` starts with the lab configuration (log line `HiveThriftServer2
+  started`, about 10 s). No `/tmp/metastore_db` was created: no Derby metastore in this setup.
+- S3: the session key `set:hiveconf:spark.sql.defaultCatalog` sets the default catalog of a
+  Thrift session. The key `spark.sql.defaultCatalog` (no prefix) is accepted but ignored
+  (`current_catalog()` stays `spark_catalog`). `use:database` does not set a catalog.
+  PyHive runs `USE default` when it opens a session. The `default` namespace must exist in the
+  selected catalog, or the connection fails with `SCHEMA_NOT_FOUND`. dbt-spark does not pass
+  the PyHive `database` argument.
+- S4: Iceberg views through the REST API: supported on polaris, nessie and rest (dbt `view`
+  model created, and read through a new session on all three).
+- S5: DuckDB 1.5.6 `tpch`: `install_mode` is `NOT_INSTALLED`. The extension is not statically
+  linked. `INSTALL tpch` downloads it to `~/.duckdb/extensions/v1.5.6/linux_amd64/`. After the
+  install, `CALL dbgen(sf = 0.001)` works (`region` has 5 rows).
+- S6: authentication `NOSASL`: PyHive and Hive JDBC connect with user `spark`. With the
+  default authentication, beeline works but PyHive fails: `No module named 'thrift_sasl'`
+  (`dbt-spark[PyHive]==1.11.0` does not install `thrift_sasl`). Start the server with
+  `--hiveconf hive.server2.authentication=NOSASL`. Use `auth: NOSASL` in the dbt profile and
+  `jdbc:hive2://127.0.0.1:10000/;auth=noSasl` for beeline.
+- S7: `pip check` after the install of the dbt packages: `No broken requirements found.`
+- S8: dbt-spark 1.11.0 `table`, `view`, `incremental` (`merge`) with `+file_format: iceberg`:
+  `PASS=3` on two consecutive runs on polaris, nessie and rest (needs the `default`
+  namespace, see S3). Risk: on `rest` one run (2 threads) failed with `SQLITE_BUSY` (the
+  fixture uses SQLite) and every commit then failed with `500 Unknown failure` until the
+  `rest-fixture` container was restarted. After the restart, 2 threads worked on `rest`.
+  On nessie, `m_incr.snapshots` has 1 row after two runs (polaris and rest: 2).
+
 ## Open investigations
 
 Filled in during the later phases.
