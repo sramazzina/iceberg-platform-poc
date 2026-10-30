@@ -16,7 +16,7 @@ trap 'rm -f "$ANSWER" "$OUT.new"' EXIT
 
 : "${POLARIS_ROLE_ARN:?}" "${POLARIS_EXTERNAL_ID:?}" "${S3_BUCKET:?}" "${AWS_REGION:?}"
 # Docker creates a missing ./secrets as root; `make up` creates it as the host user.
-[ -w /secrets ] || fail "secrets/ is not writable by UID $(id -u): run 'sudo chown $(id -u) secrets' on the host, then make up"
+[ -w /secrets ] || fail "secrets/ is not writable by UID $(id -u) (secrets/rustfs/ on the RustFS variant): run 'sudo chown $(id -u) <directory>' on the host, then make up"
 case ${S3_PATH_STYLE_ACCESS:-false} in true|false) ;; *) fail "S3_PATH_STYLE_ACCESS must be true or false" ;; esac
 
 # field NAME: prints the string value of the JSON field NAME in $ANSWER.
@@ -53,6 +53,8 @@ location="s3://$S3_BUCKET/polaris/"
 extra=""
 if [ -n "${S3_ENDPOINT:-}" ]; then
   extra=",\"endpoint\":\"$S3_ENDPOINT\",\"pathStyleAccess\":${S3_PATH_STYLE_ACCESS:-false}"
+  # S3-compatible storage such as RustFS rejects the KMS resources that Polaris adds to the session policy.
+  extra="$extra,\"kmsUnavailable\":true"
 fi
 create "catalog lab_catalog" POST /catalogs "{\"catalog\":{\"name\":\"lab_catalog\",\"type\":\"INTERNAL\",\"readOnly\":false,\"properties\":{\"default-base-location\":\"$location\"},\"storageConfigInfo\":{\"storageType\":\"S3\",\"roleArn\":\"$POLARIS_ROLE_ARN\",\"externalId\":\"$POLARIS_EXTERNAL_ID\",\"region\":\"$AWS_REGION\",\"allowedLocations\":[\"$location\"]$extra}}}"
 
@@ -83,7 +85,7 @@ if [ "$write" = 1 ]; then
   umask 077
   printf 'POLARIS_SPARK_CLIENT_ID=%s\nPOLARIS_SPARK_CLIENT_SECRET=%s\n' "$id" "$secret" >"$OUT.new"
   mv "$OUT.new" "$OUT"
-  echo "polaris-setup: credentials written to secrets/spark_user.env"
+  echo "polaris-setup: credentials written to secrets/spark_user.env (secrets/rustfs/ on the RustFS variant)"
   if [ "$code" = 200 ]; then
     echo "polaris-setup: credentials reset; run 'docker compose restart spark' if spark is already running"
   fi

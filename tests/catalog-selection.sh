@@ -7,6 +7,12 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/tests/lib/assert.sh"
 cd "$ROOT"
+
+# The service lists below are the lists of the AWS stack.
+if docker compose config --services 2>/dev/null | grep -qx rustfs; then
+  echo "catalog selection: skipped on the RustFS variant"
+  exit 0
+fi
 log=$(mktemp)
 trap 'rm -f "$log"; make up >/dev/null 2>&1 || echo "  warn - make up with the .env selection failed"' EXIT
 

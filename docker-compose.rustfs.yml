@@ -1,0 +1,117 @@
+# On-premise variant: RustFS replaces AWS S3 (docs/superpowers/specs/2026-10-29-rustfs-onprem-design.md).
+# Select it in .env: COMPOSE_FILE=docker-compose.yml:docker-compose.rustfs.yml
+# Compose merges this file into docker-compose.yml: mappings merge by key, volumes by
+# container path.
+
+services:
+  rustfs:
+    image: ${RUSTFS_IMAGE}
+    # The host user owns the files of the data directory (spec section 6.3).
+    user: "${LAB_UID:-1000}"
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ROOT_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_ROOT_SECRET_KEY}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      # The same region as the S3 clients of the lab.
+      RUSTFS_REGION: ${AWS_REGION}
+    volumes:
+      - ${RUSTFS_DATA_DIR:-./data/rustfs}:/data
+    ports:
+      # Host port 9000 is the Nessie management port: the S3 API is on 9100, the console on 9101.
+      - "127.0.0.1:9100:9000"
+      - "127.0.0.1:9101:9001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/health >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  rustfs-setup:
+    image: ${RUSTFS_RC_IMAGE}
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    # Creates the bucket, the users polaris and lab, and their policies. A second run
+    # changes nothing (spec section 7).
+    entrypoint: ["/bin/sh", "/setup/setup.sh"]
+    environment:
+      S3_BUCKET: ${S3_BUCKET}
+      RUSTFS_ROOT_ACCESS_KEY: ${RUSTFS_ROOT_ACCESS_KEY}
+      RUSTFS_ROOT_SECRET_KEY: ${RUSTFS_ROOT_SECRET_KEY}
+      RUSTFS_POLARIS_ACCESS_KEY: ${RUSTFS_POLARIS_ACCESS_KEY}
+      RUSTFS_POLARIS_SECRET_KEY: ${RUSTFS_POLARIS_SECRET_KEY}
+      RUSTFS_LAB_ACCESS_KEY: ${RUSTFS_LAB_ACCESS_KEY}
+      RUSTFS_LAB_SECRET_KEY: ${RUSTFS_LAB_SECRET_KEY}
+    volumes:
+      - ./rustfs/setup:/setup:ro
+
+  # S3 clients of the user lab (spec section 7): nessie/ and rest/, only list on polaris/.
+  nessie:
+    depends_on:
+      rustfs-setup:
+        condition: service_completed_successfully
+    environment:
+      NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_ENDPOINT: http://rustfs:9000
+      NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_PATH_STYLE_ACCESS: "true"
+      AWS_ACCESS_KEY_ID: ${RUSTFS_LAB_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_LAB_SECRET_KEY}
+
+  spark:
+    depends_on:
+      rustfs-setup:
+        condition: service_completed_successfully
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PATH_STYLE_ACCESS: "true"
+      # The AWS CLI in the container uses RustFS too.
+      AWS_ENDPOINT_URL: http://rustfs:9000
+      AWS_ACCESS_KEY_ID: ${RUSTFS_LAB_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_LAB_SECRET_KEY}
+    volumes:
+      - ./secrets/rustfs:/run/lab-secrets:ro
+
+  # Own state for the variant: the catalogs of the AWS stack point to AWS S3 (spec section 6.4).
+  postgres:
+    volumes:
+      - pgdata-rustfs:/var/lib/postgresql
+
+  rest-fixture:
+    depends_on:
+      rustfs-setup:
+        condition: service_completed_successfully
+    environment:
+      CATALOG_S3_ENDPOINT: http://rustfs:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      AWS_ACCESS_KEY_ID: ${RUSTFS_LAB_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_LAB_SECRET_KEY}
+    volumes:
+      - rest-fixture-data-rustfs:/home/iceberg
+
+  # Polaris vends credentials through the RustFS STS (spec section 7): it calls AssumeRole
+  # with the keys of the user polaris.
+  polaris:
+    depends_on:
+      rustfs-setup:
+        condition: service_completed_successfully
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_POLARIS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_POLARIS_SECRET_KEY}
+
+  polaris-setup:
+    environment:
+      # The catalog endpoint; stsEndpoint defaults to it.
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PATH_STYLE_ACCESS: "true"
+      # RustFS ignores RoleArn and ExternalId (spec section 3); setup.sh requires values.
+      # 123456789012 is the fake test account.
+      POLARIS_ROLE_ARN: arn:aws:iam::123456789012:role/rustfs-placeholder
+      POLARIS_EXTERNAL_ID: rustfs-placeholder
+    volumes:
+      - ./secrets/rustfs:/secrets
+
+volumes:
+  pgdata-rustfs:
+  rest-fixture-data-rustfs:

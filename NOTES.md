@@ -94,14 +94,24 @@ Each entry: what the requirement says, what the lab does, and why.
   no scenario notebooks, no `make scenarios` and no `EVALUATION.md`.
 - Why: the current scope is to build the platform for study, not to compare the catalogs.
 
+### D15 — RustFS for the on-premise variant
+- The spec names MinIO or RustFS for on-premise storage. MinIO Community Edition is archived
+  (2026) and is AGPLv3. The lab uses RustFS 1.0.4 (Apache-2.0): it implements STS
+  `AssumeRole`, so Polaris vends credentials as on AWS.
+- Rejected: Versity S3 Gateway (plain files, but no STS), SeaweedFS (too many components),
+  Garage (AGPLv3), Ceph RGW (heavy, LGPL), S3Proxy (no STS).
+- RustFS keeps objects in an internal format. The user accepts it: the web console shows
+  the storage (user decision, 2026-10-29).
+- Design: `docs/superpowers/specs/2026-10-29-rustfs-onprem-design.md`.
+
 ## Findings
 
 ### F1 — Nessie S3 credentials (Nessie 0.109.0, checked 2026-10-28)
 - Nessie reads and writes table metadata with its own server credentials. The lab sets
   `auth-type=APPLICATION_GLOBAL`. This uses the AWS default credential chain, which gives the
   VM instance profile. The default `auth-type` is `STATIC` (static keys).
-- On-premise, the default chain reads the static keys of `.env` (`AWS_ACCESS_KEY_ID`,
-  `AWS_SECRET_ACCESS_KEY`), which `docker-compose.yml` gives to Nessie. Not tested.
+- On the RustFS variant, the default chain reads the keys of the user `lab` that
+  `docker-compose.rustfs.yml` gives to Nessie. Tested (`make smoke-test`).
 - Nessie gives clients S3 access in three ways:
   - **Request signing** (on by default): the client sends every S3 request to Nessie
     (`/iceberg/v1/{prefix}/s3sign/...`) for signing. The client needs no S3 credentials.
@@ -165,11 +175,39 @@ Each entry: what the requirement says, what the lab does, and why.
   `spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkCatalog.java` at tag
   `apache-iceberg-1.11.0`. `tests/catalog-smoke.sh rest` fails when a file is left under the
   table root, and the VM role deletes it.
-- On-premise S3 for the fixture (`CATALOG_S3_ENDPOINT`, path-style access): not configured and
-  not tested. An empty endpoint value can break `S3FileIO`, so the lab does not pass it on AWS.
+- On the RustFS variant, `CATALOG_S3_ENDPOINT` and `CATALOG_S3_PATH__STYLE__ACCESS` configure
+  the fixture, and `spark/conf/s3-endpoint/baseline.conf` gives the same values to Spark (the
+  fixture does not give them to clients). On AWS the lab passes no endpoint: an empty endpoint
+  value can break `S3FileIO`.
+
+### F6 — RustFS (1.0.4, checked 2026-10-29)
+- RustFS ignores `RoleArn` in `AssumeRole`. The temporary credentials inherit the policies of
+  the calling user (`polaris`), restricted by the Polaris session policy. The lab gives
+  Polaris a placeholder role ARN with the fake account `123456789012`.
+- The caller of `AssumeRole` must be a built-in user, not a service account: `rustfs-setup`
+  creates the users with `rc admin user add` (rustfs/rustfs#4832).
+- RustFS rejects a policy resource that is not an S3 ARN: `*`, `arn:aws:sts:::*`,
+  `arn:aws:iam:::*` and `arn:aws:kms:...` give "invalid resource". So:
+  - The `sts:AssumeRole` statement of `rustfs/setup/policy-polaris.json` has no `Resource`
+    key. `AssumeRole` works with it.
+  - Polaris adds a KMS statement (`arn:aws:kms:<region>:<account>:key/*`) to the session
+    policy by default, and RustFS rejects the whole policy. `polaris/setup/setup.sh` sets
+    `kmsUnavailable: true` in the catalog storage configuration when `S3_ENDPOINT` is set.
+    Credential vending stays on. Source: `AwsStorageConfigInfo` in
+    `spec/polaris-management-service.yml` at tag `apache-polaris-1.8.0`.
+  - A catalog made before this change keeps its old storage configuration. Update it with
+    `PUT /api/management/v1/catalogs/lab_catalog` (`currentEntityVersion` and the
+    `storageConfigInfo` with `kmsUnavailable: true`).
+- Nessie 0.109.0 gives `s3.path-style-access` to clients, with `s3.endpoint`. Spark needs no
+  endpoint setting for the catalog `nessie`.
+- The lab runs RustFS with `LAB_UID`, so the data directory belongs to the host user. The
+  RustFS log warns that it cannot write `/logs`; it logs to stdout. The warning is harmless.
+- `rustfs/rustfs#2766` (`DeleteObjects` and the bucket ARN) did not occur: `DROP TABLE ...
+  PURGE` works on all catalogs.
 
 ## Open investigations
 
 Filled in during the later phases.
 
-- Polaris credential vending against S3-compatible on-premise storage (`stsUnavailable`, `stsEndpoint`).
+- Not verified: the RustFS variant on Linux with Docker Engine and on macOS. The variant is
+  verified on Windows (WSL2) with Docker Desktop.
