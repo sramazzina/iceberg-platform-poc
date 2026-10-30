@@ -27,6 +27,11 @@ The tag `latest` is never used.
 | pandas | 2.3.3 (last release for Python 3.10) | `spark/requirements.txt` | <https://pypi.org/project/pandas/2.3.3/> |
 | pyarrow | 25.0.1 (last release for Python 3.10) | `spark/requirements.txt` | <https://pypi.org/project/pyarrow/25.0.1/> |
 | requests | 2.34.2 | `spark/requirements.txt` | <https://pypi.org/project/requests/2.34.2/> |
+| dbt-core | 1.12.6 (Apache-2.0) | `spark/requirements.txt` | <https://pypi.org/project/dbt-core/1.12.6/> |
+| dbt-spark | 1.11.0 (Apache-2.0), extra `PyHive` | `spark/requirements.txt` | <https://pypi.org/project/dbt-spark/1.11.0/> |
+| PyHive | 0.7.0 (Apache-2.0) | `spark/requirements.txt` | <https://pypi.org/project/PyHive/0.7.0/> |
+| thrift | 0.22.0 (Apache-2.0; dbt-spark 1.11.0 needs < 0.23.0) | `spark/requirements.txt` | <https://pypi.org/project/thrift/0.22.0/> |
+| DuckDB | 1.5.6 (MIT; 2.0.0 needs Python 3.11) | `spark/requirements.txt` | <https://pypi.org/project/duckdb/1.5.6/> |
 
 RustFS and `rc` were verified on 2026-10-29 (on-premise variant).
 
