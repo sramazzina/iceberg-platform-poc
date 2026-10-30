@@ -66,6 +66,22 @@ implementer stops and the user decides before the design changes.
 6. The authentication mode of the Thrift Server (`NOSASL` or `NONE`) that both PyHive and
    the Hive JDBC driver of DBeaver accept.
 
+### 4.1 Spike results (2026-10-30, `NOTES.md` F7) and design changes
+
+- Points 1, 2, 4 and 5 hold. The `tpch` extension is not in the wheel: the image build
+  installs it.
+- Point 6: `NOSASL`. The default mode needs SASL, and PyHive then needs `thrift_sasl`. The
+  dbt targets have `auth: NOSASL`; the JDBC URL has `;auth=noSasl`.
+- Point 3: `server_side_parameters` with the key `set:hiveconf:spark.sql.defaultCatalog`.
+  PyHive opens each session with `USE default` in that catalog, so `make dbt` creates the
+  empty namespace `<catalog>.default` first.
+- Point 4: views work, but Polaris does not delete the metadata file of a dropped view, and
+  on AWS the lab role cannot delete it. The staging models are **tables** on every catalog.
+- `rest-fixture` (SQLite) locks under concurrent commits: the target `rest` has
+  `threads: 1`.
+- Nessie returns only the snapshot of its current commit: the tests do not count
+  snapshots. They check the operation of the last snapshot (`append`, then `overwrite`).
+
 ## 5. Architecture
 
 ```mermaid
@@ -93,7 +109,7 @@ flowchart LR
   foreground (the arguments of the service).
 - Port `127.0.0.1:10000:10000`. External clients use the SSH tunnel or SSM port forwarding
   that the README already documents.
-- No authentication (`hive.server2.authentication`: `NOSASL` or `NONE`, spike point 6). The port is bound to localhost only.
+- No authentication (`hive.server2.authentication=NOSASL`, section 4.1). The port is bound to localhost only.
   The README records this as a lab limit.
 - Same environment and secrets as `spark` (catalog credentials, `LAB_CATALOGS`, S3
   settings). It depends on the catalogs as `spark` does (`required: false`).
@@ -152,7 +168,7 @@ catalog configuration.
 | Namespace | Written by | Content |
 |---|---|---|
 | `tpch_raw` | `tpch-load` | The 8 TPC-H tables, 1:1 copy of the Parquet files (dbt sources) |
-| `tpch_staging` | dbt | `stg_<table>`: renamed columns, types. Materialization `view` (spike point 4), else `table` |
+| `tpch_staging` | dbt | `stg_<table>`: renamed columns, types. Materialization `table` (section 4.1) |
 | `tpch_marts` | dbt | `revenue_by_nation` (table), `customer_orders` (table), `fct_lineitem` (incremental) |
 
 - All models: `file_format: iceberg`.
@@ -188,7 +204,7 @@ New tests follow the style of `tests/*.sh` (`ok` / `FAIL` lines, non-zero exit o
    2. Check the row counts of `tpch_raw`; check that `fct_lineitem` has only rows with an
       order date up to 1996-12-31.
    3. `tpch-load` without `UNTIL`, `dbt run`. Check that `fct_lineitem` has the same row
-      count as `tpch_raw.lineitem`, and that it has 2 snapshots.
+      count as `tpch_raw.lineitem`, and that the operation of its last snapshot is `overwrite` (a merge).
    4. `tpch-clean`. Check that no object is left under the S3 prefix of the catalog (same
       check as the smoke test for `polaris/`).
 3. Changes to existing tests:
