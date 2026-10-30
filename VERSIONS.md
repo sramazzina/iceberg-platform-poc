@@ -35,6 +35,13 @@ The tag `latest` is never used.
 
 RustFS and `rc` were verified on 2026-10-29 (on-premise variant).
 
+The dbt and DuckDB packages were verified on 2026-10-30. Their dependencies are permissive
+(Apache-2.0, MIT, BSD, ISC, PSF, MPL-2.0), with one exception: `text-unidecode` 1.3 (from
+`dbt-core` through `python-slugify`) has the dual license Artistic License or GPLv2+. The
+lab uses it under the Artistic License (user decision, 2026-10-30). The DuckDB `tpch`
+extension is downloaded at image build time (`spark/Dockerfile`); DuckDB checks its
+signature.
+
 ## Compatibility
 
 | Check | Result | Source |
