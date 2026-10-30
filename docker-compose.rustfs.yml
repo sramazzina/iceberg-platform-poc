@@ -90,6 +90,28 @@ services:
     volumes:
       - rest-fixture-data-rustfs:/home/iceberg
 
+  # Polaris vends credentials through the RustFS STS (spec section 7): it calls AssumeRole
+  # with the keys of the user polaris.
+  polaris:
+    depends_on:
+      rustfs-setup:
+        condition: service_completed_successfully
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_POLARIS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_POLARIS_SECRET_KEY}
+
+  polaris-setup:
+    environment:
+      # The catalog endpoint; stsEndpoint defaults to it.
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PATH_STYLE_ACCESS: "true"
+      # RustFS ignores RoleArn and ExternalId (spec section 3); setup.sh requires values.
+      # 123456789012 is the fake test account.
+      POLARIS_ROLE_ARN: arn:aws:iam::123456789012:role/rustfs-placeholder
+      POLARIS_EXTERNAL_ID: rustfs-placeholder
+    volumes:
+      - ./secrets/rustfs:/secrets
+
 volumes:
   pgdata-rustfs:
   rest-fixture-data-rustfs:

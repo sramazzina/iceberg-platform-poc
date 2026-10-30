@@ -65,4 +65,12 @@ done
 assert_eq "$(src "$rustfs" spark /run/lab-secrets | sed 's#.*/secrets/#secrets/#')" "secrets/rustfs" "spark reads secrets/rustfs"
 assert_eq "$(q "$aws" '.services.spark.environment.AWS_ENDPOINT_URL')" "null" "AWS stack: no AWS_ENDPOINT_URL"
 
+polaris_key=${RUSTFS_POLARIS_ACCESS_KEY:-$(sed -n 's/^RUSTFS_POLARIS_ACCESS_KEY=//p' "$env_file")}
+assert_eq "$(q "$rustfs" '.services.polaris.environment.AWS_ACCESS_KEY_ID')" "$polaris_key" "polaris calls STS with the user polaris"
+assert_eq "$(q "$rustfs" '.services.polaris.depends_on["rustfs-setup"].condition')" "service_completed_successfully" "polaris waits for rustfs-setup"
+assert_eq "$(q "$rustfs" '.services["polaris-setup"].environment | "\(.S3_ENDPOINT) \(.S3_PATH_STYLE_ACCESS)"')" \
+  "http://rustfs:9000 true" "polaris-setup gives the RustFS endpoint to the catalog"
+assert_contains "$(q "$rustfs" '.services["polaris-setup"].environment.POLARIS_ROLE_ARN')" ":123456789012:" "placeholder role ARN with the fake account"
+assert_eq "$(src "$rustfs" polaris-setup /secrets | sed 's#.*/secrets/#secrets/#')" "secrets/rustfs" "polaris-setup writes secrets/rustfs"
+
 finish

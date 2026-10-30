@@ -53,6 +53,8 @@ location="s3://$S3_BUCKET/polaris/"
 extra=""
 if [ -n "${S3_ENDPOINT:-}" ]; then
   extra=",\"endpoint\":\"$S3_ENDPOINT\",\"pathStyleAccess\":${S3_PATH_STYLE_ACCESS:-false}"
+  # S3-compatible storage such as RustFS rejects the KMS resources that Polaris adds to the session policy.
+  extra="$extra,\"kmsUnavailable\":true"
 fi
 create "catalog lab_catalog" POST /catalogs "{\"catalog\":{\"name\":\"lab_catalog\",\"type\":\"INTERNAL\",\"readOnly\":false,\"properties\":{\"default-base-location\":\"$location\"},\"storageConfigInfo\":{\"storageType\":\"S3\",\"roleArn\":\"$POLARIS_ROLE_ARN\",\"externalId\":\"$POLARIS_EXTERNAL_ID\",\"region\":\"$AWS_REGION\",\"allowedLocations\":[\"$location\"]$extra}}}"
 
