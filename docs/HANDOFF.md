@@ -33,11 +33,25 @@ Findings of the execution (recorded in `NOTES.md` F6 on the branch):
 
 ## Resume here
 
-1. The user runs the AWS regression (plan, Task 27 Step 3) on the EC2 VM, on the branch
-   `feat/rustfs-onprem`: `tests/catalog-selection.sh`,
-   `COMPOSE_PROFILES=nessie,polaris,baseline make up`,
-   `COMPOSE_PROFILES=nessie,polaris,baseline make smoke-test`, `tests/spark-config.sh`,
-   `make lint`. Then `make up` to restore the `.env` selection.
+1. **First thing in the next session:** show the user (in Italian) the commands below for the
+   AWS regression (plan, Task 27 Step 3), then wait for the result. The user runs them on the
+   EC2 VM, in the repository directory; Claude does not run them (no AWS on the workstation).
+
+   ```bash
+   git fetch origin
+   git checkout feat/rustfs-onprem
+   git pull
+   tests/catalog-selection.sh
+   COMPOSE_PROFILES=nessie,polaris,baseline make up
+   COMPOSE_PROFILES=nessie,polaris,baseline make smoke-test
+   tests/spark-config.sh
+   make lint
+   make up   # back to the .env selection (postgres and spark only)
+   ```
+
+   Expected: all green, no `FAIL`. No object is left under `polaris/` on AWS (the smoke test
+   checks it). The VM `.env` does not need the RustFS lines (`make lint` renders against
+   `.env.example`). If a test fails, ask the user for the output of the failing command.
 2. If the regression passes: tick the third item of issue #37 and update the PR #39 test
    plan. If it fails: fix on the branch (collect the fixes, push them as one batch).
 3. Check the CI of PR #39. The user merges; never merge yourself.
@@ -135,5 +149,5 @@ Findings of the execution (recorded in `NOTES.md` F6 on the branch):
 
 ```text
 Read docs/HANDOFF.md (on main). PR #39 (RustFS variant) is open. Follow "Resume here":
-ask the user for the result of the AWS regression on the EC2 VM.
+show me the AWS regression commands for the EC2 VM, then wait for my result.
 ```
