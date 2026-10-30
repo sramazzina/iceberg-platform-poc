@@ -29,6 +29,25 @@ services:
       timeout: 5s
       retries: 30
 
+  rustfs-setup:
+    image: ${RUSTFS_RC_IMAGE}
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    # Creates the bucket, the users polaris and lab, and their policies. A second run
+    # changes nothing (spec section 7).
+    entrypoint: ["/bin/sh", "/setup/setup.sh"]
+    environment:
+      S3_BUCKET: ${S3_BUCKET}
+      RUSTFS_ROOT_ACCESS_KEY: ${RUSTFS_ROOT_ACCESS_KEY}
+      RUSTFS_ROOT_SECRET_KEY: ${RUSTFS_ROOT_SECRET_KEY}
+      RUSTFS_POLARIS_ACCESS_KEY: ${RUSTFS_POLARIS_ACCESS_KEY}
+      RUSTFS_POLARIS_SECRET_KEY: ${RUSTFS_POLARIS_SECRET_KEY}
+      RUSTFS_LAB_ACCESS_KEY: ${RUSTFS_LAB_ACCESS_KEY}
+      RUSTFS_LAB_SECRET_KEY: ${RUSTFS_LAB_SECRET_KEY}
+    volumes:
+      - ./rustfs/setup:/setup:ro
+
   # Own state for the variant: the catalogs of the AWS stack point to AWS S3 (spec section 6.4).
   postgres:
     volumes:

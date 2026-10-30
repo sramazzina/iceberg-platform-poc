@@ -44,4 +44,8 @@ assert_eq "$(src "$rustfs" postgres /docker-entrypoint-initdb.d | sed 's#.*/##')
 lab_uid=${LAB_UID:-$(sed -n 's/^LAB_UID=//p' "$env_file")}; lab_uid=${lab_uid:-1000}
 assert_eq "$(q "$rustfs" '.services.rustfs.user')" "$lab_uid" "rustfs runs with LAB_UID"
 
+assert_eq "$(q "$rustfs" '.services["rustfs-setup"].image')" "$(sed -n 's/^RUSTFS_RC_IMAGE=//p' .env.example)" "rustfs-setup image pinned in .env.example"
+assert_eq "$(q "$rustfs" '.services["rustfs-setup"].depends_on.rustfs.condition')" "service_healthy" "rustfs-setup waits for a healthy rustfs"
+assert_eq "$(src "$rustfs" rustfs-setup /setup | sed 's#.*/rustfs/#rustfs/#')" "rustfs/setup" "rustfs-setup mounts rustfs/setup"
+
 finish
