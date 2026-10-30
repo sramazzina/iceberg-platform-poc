@@ -97,7 +97,8 @@ flowchart LR
   The README records this as a lab limit.
 - Same environment and secrets as `spark` (catalog credentials, `LAB_CATALOGS`, S3
   settings). It depends on the catalogs as `spark` does (`required: false`).
-- Healthcheck: `beeline` runs `SELECT 1` on port 10000.
+- Healthcheck: a TCP check on port 10000 (cheap; a `beeline` call starts a JVM).
+  `tests/thrift-service.sh` runs real SQL.
 - `docker-compose.rustfs.yml` gives `spark-thrift` the same overrides as `spark`
   (`S3_ENDPOINT`, path-style access, the `lab` user keys, `secrets/rustfs/`).
 
@@ -143,7 +144,7 @@ catalog configuration.
   `macros/`, `tests/`.
 - `profiles.yml`: profile `lab`, method `thrift`, host `spark-thrift`, port 10000, three
   targets `polaris`, `nessie`, `rest`. Each target selects its catalog (spike point 3).
-  Default target: none; `make dbt` requires `--target`.
+  Default target: none; `make dbt` requires `CATALOG=<c>` and passes `--target <c>`.
 - Macro `generate_schema_name`: the custom schema name is used as it is (no
   `<target>_<custom>` prefix).
 - Namespaces in each catalog:
@@ -168,7 +169,7 @@ catalog configuration.
 |---|---|
 | `make tpch-gen SF=<n>` | Generate the Parquet files (section 6.3) |
 | `make tpch-load CATALOG=<c> SF=<n> [UNTIL=<date>]` | Load the raw tables (section 6.4) |
-| `make dbt ARGS="<dbt arguments>"` | Run dbt in the `spark` container, working directory `/workspace/dbt`. Stops with a clear message if the profile `thrift` is off, or if the catalog of `--target` is off |
+| `make dbt CATALOG=<c> ARGS="<dbt arguments>"` | Run `dbt <ARGS> --target <c>` in the `spark` container, working directory `/workspace/dbt`. Stops with a clear message if the profile `thrift` is off, or if the catalog is off |
 | `make tpch-clean CATALOG=<c>` | Drop the tables of `tpch_raw`, `tpch_staging`, `tpch_marts` with `PURGE`, then the namespaces |
 | `make elt-test CATALOG=<c>` | Run `tests/elt.sh` (section 7) |
 
@@ -179,7 +180,9 @@ catalog configuration.
 New tests follow the style of `tests/*.sh` (`ok` / `FAIL` lines, non-zero exit on failure).
 
 1. `tests/thrift-service.sh`: with the profile `thrift` on, `beeline -u
-   jdbc:hive2://localhost:10000` runs `SHOW CATALOGS` and finds each catalog that is on.
+   jdbc:hive2://127.0.0.1:10000` (JDBC) and PyHive (the client of dbt) run SQL, and
+   `SHOW NAMESPACES IN <catalog>` works for each catalog that is on. (`SHOW CATALOGS` lists
+   only the catalogs that the session has already loaded.)
 2. `tests/elt.sh <catalog>` (end to end, `SF=0.01`):
    1. `tpch-gen`, `tpch-load UNTIL=1996-12-31`, `dbt build`.
    2. Check the row counts of `tpch_raw`; check that `fct_lineitem` has only rows with an
