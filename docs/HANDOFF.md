@@ -2,9 +2,8 @@
 
 - Date: 2026-10-30
 - From: Claude Code session on the user's workstation (Windows, WSL2, Docker Desktop):
-  Tasks 24-28 of the on-premise variant with RustFS, final review, push and PR
-- To: the next Claude Code session on the **same workstation** (or on the EC2 VM for the
-  AWS regression)
+  AWS regression of the RustFS variant, merge of PR #39, cleanup
+- To: the next Claude Code session on the **same workstation**
 
 ## Where we are
 
@@ -14,17 +13,14 @@
 | Lab design spec | `docs/superpowers/specs/2026-10-28-iceberg-catalog-lab-design.md` |
 | Stage 1, Phases 1-4, Nessie CLI | Merged (PRs #10, #11, #16, #23, #27, #30, #32) |
 | Phase 5 (scenarios), Phase 6 (evaluation) | Deferred (`NOTES.md` D14) |
-| **On-premise variant with RustFS** | **Implementation complete**, PR **#39** open (branch `feat/rustfs-onprem`, pushed) |
-| RustFS spec | `docs/superpowers/specs/2026-10-29-rustfs-onprem-design.md` (on the branch) |
-| RustFS plan | `docs/superpowers/plans/2026-10-29-rustfs-onprem.md` (on the branch) — Tasks 23-28 |
-| GitHub issues | #33-#38, all closed by PR #39 on merge. All checklists ticked, except one item of #37: the AWS regression |
-| Final review of the branch | Done ("ready with minor fixes"); fixes in `434127c` |
+| **On-premise variant with RustFS** | **Merged** (PR #39, merge commit `b2c8dc9`, 2026-10-30). Branch `feat/rustfs-onprem` deleted (local and remote) |
+| RustFS spec | `docs/superpowers/specs/2026-10-29-rustfs-onprem-design.md` |
+| RustFS plan | `docs/superpowers/plans/2026-10-29-rustfs-onprem.md` — Tasks 23-28, all done |
+| GitHub issues | #33-#38 closed, all checklists ticked |
+| AWS regression (Task 27 Step 3) | Passed on the EC2 VM (run by the user, 2026-10-30) |
+| CI | The repository has no GitHub Actions workflow (`.github/workflows` does not exist) |
 
-Commits on `feat/rustfs-onprem`: spec `f7f1f5d`, plan `02c8a4d` and `36c603d`, T23 `321deeb`
-and `dcfea72`, T24 `dae348c`, T25 `7c847d2`, T26 `bdbe305`, T27 `d52ecc3`, T28 `8d2f0c3`,
-final review fixes `434127c`.
-
-Findings of the execution (recorded in `NOTES.md` F6 on the branch):
+Findings of the RustFS work (recorded in `NOTES.md` F6):
 - RustFS accepts only S3 ARNs as policy resources. The `sts:AssumeRole` statement of
   `rustfs/setup/policy-polaris.json` has no `Resource`; AssumeRole works with it.
 - Polaris adds a KMS statement to the session policy, and RustFS rejects it.
@@ -33,30 +29,11 @@ Findings of the execution (recorded in `NOTES.md` F6 on the branch):
 
 ## Resume here
 
-1. **First thing in the next session:** show the user (in Italian) the commands below for the
-   AWS regression (plan, Task 27 Step 3), then wait for the result. The user runs them on the
-   EC2 VM, in the repository directory; Claude does not run them (no AWS on the workstation).
-
-   ```bash
-   git fetch origin
-   git checkout feat/rustfs-onprem
-   git pull
-   tests/catalog-selection.sh
-   COMPOSE_PROFILES=nessie,polaris,baseline make up
-   COMPOSE_PROFILES=nessie,polaris,baseline make smoke-test
-   tests/spark-config.sh
-   make lint
-   make up   # back to the .env selection (postgres and spark only)
-   ```
-
-   Expected: all green, no `FAIL`. No object is left under `polaris/` on AWS (the smoke test
-   checks it). The VM `.env` does not need the RustFS lines (`make lint` renders against
-   `.env.example`). If a test fails, ask the user for the output of the failing command.
-2. If the regression passes: tick the third item of issue #37 and update the PR #39 test
-   plan. If it fails: fix on the branch (collect the fixes, push them as one batch).
-3. Check the CI of PR #39. The user merges; never merge yourself.
-4. After the user confirms the merge: delete the branch locally and on the remote,
-   `git checkout main && git pull`, then update this file.
+1. No work is in progress. Ask the user (in Italian) for the next goal. Candidates:
+   Phase 5 (scenarios) and Phase 6 (evaluation), deferred in `NOTES.md` D14; the open
+   points below.
+2. For new work: brainstorm with `superpowers:brainstorming`, write the plan with
+   `superpowers:writing-plans`, open one GitHub issue per task, then execute.
 
 ## State of this workstation
 
@@ -70,21 +47,21 @@ Findings of the execution (recorded in `NOTES.md` F6 on the branch):
 - Last state of the variant: `postgres`, `rustfs`, `spark`. The bucket, the users `polaris`
   and `lab`, `lab_catalog` and `secrets/rustfs/spark_user.env` exist. The catalogs hold no
   table (only the empty namespace `smoke`).
-- `data/rustfs/` and `secrets/rustfs/` exist (git-ignored on the branch). On `main`, `data/`
-  shows as untracked.
+- `data/rustfs/` and `secrets/rustfs/` exist (git-ignored).
 - Docker volumes: `pgdata-rustfs`, `rest-fixture-data-rustfs` (variant) and `pgdata` (one
   switch test to the AWS configuration; empty catalogs).
 
-## State of the EC2 VM (unchanged since the previous handoff)
+## State of the EC2 VM
+
+- After the regression the VM is on the deleted branch `feat/rustfs-onprem`. At the next
+  use there: `git checkout main && git pull`, then `git branch -D feat/rustfs-onprem`.
 
 - The AWS stack runs there with `postgres` and `spark` only (`COMPOSE_PROFILES=`).
 - `secrets/spark_user.env` exists there. Catalogs: only the empty namespace `smoke`. The S3
   bucket has no object under `polaris/`, `nessie/` or `rest/`.
 - The VM role can only **list** under `polaris/`: drop every Polaris table with
   `DROP TABLE ... PURGE`; a left file must be deleted by the user from CloudShell.
-- For the AWS regression of Task 27: the VM `.env` needs the new RustFS lines of
-  `.env.example` only if the variant runs there; the AWS stack does not need them, but
-  `make lint` renders against `.env.example`, so it works without them.
+- The VM `.env` needs the RustFS lines of `.env.example` only if the variant runs there.
 
 ## Decisions already taken with the user (do not ask again)
 
@@ -148,6 +125,6 @@ Findings of the execution (recorded in `NOTES.md` F6 on the branch):
 ## Kick-off prompt for the next session
 
 ```text
-Read docs/HANDOFF.md (on main). PR #39 (RustFS variant) is open. Follow "Resume here":
-show me the AWS regression commands for the EC2 VM, then wait for my result.
+Read docs/HANDOFF.md (on main). The RustFS variant is merged. Follow "Resume here":
+ask me for the next goal.
 ```
