@@ -18,7 +18,7 @@ for catalog in "${list[@]}"; do
     if [[ -f $secrets ]]; then
       source "$secrets"
     else
-      echo "lab-entrypoint: polaris is selected but secrets/spark_user.env is missing: run make up (polaris-setup writes it)" >&2
+      echo "lab-entrypoint: polaris is selected but secrets/spark_user.env (secrets/rustfs/ on the RustFS variant) is missing: run make up (polaris-setup writes it)" >&2
     fi
   fi
 done

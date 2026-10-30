@@ -3,7 +3,7 @@
 A reproducible lab to evaluate and compare two Apache Iceberg REST catalogs,
 **Apache Polaris** and **Project Nessie**, on one Amazon EC2 VM with Docker Compose.
 Data and metadata files are stored on a real AWS S3 bucket. The configuration reads every
-storage setting from `.env`. A variant runs the lab on premises, with RustFS instead of
+storage setting from `.env`. An on-premise variant runs the lab with RustFS instead of
 AWS S3 (see [On-premise with RustFS](#on-premise-with-rustfs)).
 
 The lab is a test environment, not a production environment.
@@ -248,6 +248,7 @@ Session Manager plugin must be installed on your machine.
 | HTTP 401 from Polaris in a long Spark session | The Polaris token of the session is no longer valid. Tokens last one hour; the Iceberg client normally refreshes them, but a refresh can fail, for example after a restart of Polaris | Start a new Spark session (`make sql-polaris`, or restart the notebook kernel) |
 | `make smoke-test` fails on `catalog-smoke.sh polaris` with `files left under ...` | A Polaris table was dropped without its files | Delete the listed files from CloudShell (`aws s3 rm`); the VM role cannot delete under `polaris/` |
 | `make up` warns `The "NESSIE_CLI_VERSION" variable is not set`, and the Spark build fails on the Nessie CLI download (HTTP 404) | `.env` was made before the Nessie CLI was added, so it has no `NESSIE_CLI_VERSION` and `NESSIE_CLI_SHA1` | Copy the two lines `NESSIE_CLI_VERSION=...` and `NESSIE_CLI_SHA1=...` from `.env.example` to `.env`, then run `make up` |
+| `rustfs` is not healthy, and `ls -ld data/rustfs` shows the owner `root` | Docker created the data directory as root, because the stack was started without `make up` | Run `sudo chown $(id -u) data/rustfs` (or the `RUSTFS_DATA_DIR` directory), then `make up` |
 | A service is not healthy after `make up` | A service did not start | Run `docker compose ps -a`, then `docker compose logs <service>` |
 
 ## On-premise with RustFS
@@ -266,13 +267,15 @@ intact, so you can go back to it.
 1. Copy the section "RustFS (on-premise)" and the lines `RUSTFS_IMAGE` and
    `RUSTFS_RC_IMAGE` from `.env.example` into `.env`, if they are missing.
 2. In `.env`, uncomment `COMPOSE_FILE=docker-compose.yml:docker-compose.rustfs.yml`.
-3. In `.env`, set `S3_BUCKET` (a local bucket name, for example `iceberg-lab`) and the six
-   `RUSTFS_*_KEY` values. Each secret key has at least 8 characters.
+3. In `.env`, set the six `RUSTFS_*_KEY` values. Each secret key has at least 8 characters.
+   `S3_BUCKET` is the name of a local bucket in RustFS: you can keep the AWS value.
 4. Run `make up`. The service `rustfs-setup` creates the bucket, the user `polaris` (Polaris
    STS calls) and the user `lab` (Spark, Nessie, `rest`).
 5. Run `make smoke-test`.
 
-To go back to AWS, comment out `COMPOSE_FILE` and run `make up`.
+To go back to AWS, comment out `COMPOSE_FILE` and run `make up`. If you changed `S3_BUCKET`
+or `AWS_REGION` for the variant, first set them again to the values from the output of
+`aws/setup.sh`.
 
 ### Web console
 
@@ -289,6 +292,11 @@ internal format: use the console or `aws s3 ls` in the `spark` container to see 
 `make reset` does not delete this directory. To delete the RustFS data, run `make down`,
 then delete the directory.
 
+`rustfs-setup` is verified for a second run with the same values. A change of a
+`RUSTFS_*_KEY` value or of `S3_BUCKET` is not verified. If a client fails with
+`SignatureDoesNotMatch` or `AccessDenied` after such a change, run `make down`, delete the
+data directory, then run `make up`.
+
 ### Hosts
 
 - Use Docker Desktop on Windows and macOS. On Windows, keep the repository in the WSL2
@@ -296,8 +304,8 @@ then delete the directory.
   `/mnt/c` are slow.
 - `LAB_UID`: on Linux and macOS use the output of `id -u`; on WSL2 the default `1000` is
   usually right.
-- Docker Desktop gives at least 8 GB of memory to its VM: the lab needs about 6 GB with
-  all catalogs on.
+- Give the Docker Desktop VM at least 8 GB of memory: the lab needs about 6 GB with all
+  catalogs on.
 
 ## Documents
 

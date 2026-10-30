@@ -184,16 +184,17 @@ Polaris flow:
 
 Success criteria:
 
-1. `make smoke-test` passes on the RustFS variant on the Linux VM, for each catalog alone
-   and for the three catalogs together.
+1. `make smoke-test` passes on the RustFS variant, for each catalog alone and for the three
+   catalogs together. Verified on Windows (WSL2) with Docker Desktop (the plan, section
+   "Execution environment"); not verified on Linux with Docker Engine.
 2. `make smoke-test` passes on the AWS stack (regression).
 3. `make lint` passes.
 
 ## 9. Documentation
 
 - `README.md`: the section "On-premise S3 storage (not verified)" becomes "On-premise with
-  RustFS": the procedure (verified on Linux) and notes for macOS and Windows (WSL2), marked
-  as not verified. Access to the console through an SSH tunnel.
+  RustFS": the procedure (verified on Windows WSL2 with Docker Desktop) and notes for the
+  hosts; Linux with Docker Engine and macOS are marked as not verified. Access to the console through an SSH tunnel.
 - `VERSIONS.md`: the images `rustfs/rustfs` and `rustfs/rc`, with sources.
 - `NOTES.md`: D15 (choice of RustFS, section 2) and the update of the on-premise items in
   "Findings" and "Open investigations".
