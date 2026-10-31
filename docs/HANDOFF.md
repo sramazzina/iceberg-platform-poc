@@ -170,5 +170,5 @@ server:
 
 ```text
 Read docs/HANDOFF.md (on main). Follow "Resume here": continue the dbt ELT plan on
-branch feat/dbt-elt from Task 32.
+branch feat/dbt-elt from Task 33.
 ```
