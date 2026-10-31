@@ -1,5 +1,6 @@
 """Generates the TPC-H tables as Parquet files with DuckDB (spec 2026-10-30-dbt-elt,
 section 6.3). Usage: python3 tpch_gen.py SF OUTDIR. Does nothing when OUTDIR is complete."""
+import math
 import pathlib
 import sys
 
@@ -16,8 +17,8 @@ def main():
         scale = float(sf)
     except ValueError:
         sys.exit(f"tpch-gen: SF must be a number (got '{sf}')")
-    if scale <= 0:
-        sys.exit(f"tpch-gen: SF must be greater than 0 (got '{sf}')")
+    if not math.isfinite(scale) or scale <= 0:
+        sys.exit(f"tpch-gen: SF must be a finite number greater than 0 (got '{sf}')")
     if all((out / f"{t}.parquet").exists() for t in TABLES):
         print(f"tpch-gen: {out} is complete, nothing to do")
         return

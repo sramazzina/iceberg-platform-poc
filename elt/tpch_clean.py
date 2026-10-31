@@ -43,16 +43,25 @@ def main():
             name = f"{catalog}.{ns}.{t}"
             rows = spark.sql(f"DESCRIBE TABLE EXTENDED {name}").where("col_name = 'Location'").collect()
             location = rows[0].data_type.rstrip("/") + "/" if rows else None
-            spark.sql(f"DROP TABLE IF EXISTS {name}{' PURGE' if PURGE[catalog] else ''}")
-            print(f"tpch-clean: dropped table {name}")
-            if not location or not location.startswith(root):
-                print(f"tpch-clean: FAIL - location of {name} not under {root}: {location}")
+            prefix = f"{root}{ns}/"
+            if not location or not location.startswith(prefix) or location == prefix:
+                print(f"tpch-clean: FAIL - location of {name} not under {prefix}: {location}")
                 failed = True
                 continue
+            spark.sql(f"DROP TABLE IF EXISTS {name}{' PURGE' if PURGE[catalog] else ''}")
+            print(f"tpch-clean: dropped table {name}")
             if OWN_FILES[catalog]:
-                aws("rm", "--recursive", "--quiet", location)
-            left = aws("ls", "--recursive", location).stdout.strip()
-            if left:
+                rm = aws("rm", "--recursive", "--quiet", location)
+                if rm.returncode != 0:
+                    print(f"tpch-clean: FAIL - cannot delete {location}: {rm.stderr.strip()}")
+                    failed = True
+                    continue
+            # aws s3 ls exits 1 with no output on an empty prefix: that is not an error.
+            ls = aws("ls", "--recursive", location)
+            if ls.returncode not in (0, 1) or ls.stderr.strip():
+                print(f"tpch-clean: FAIL - cannot list {location}: {ls.stderr.strip()}")
+                failed = True
+            elif ls.stdout.strip():
                 print(f"tpch-clean: FAIL - files left under {location}; delete them from CloudShell")
                 failed = True
         spark.sql(f"DROP NAMESPACE IF EXISTS {catalog}.{ns}")

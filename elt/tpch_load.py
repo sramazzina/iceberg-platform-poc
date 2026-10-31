@@ -21,9 +21,10 @@ def main():
     until = sys.argv[3] if len(sys.argv) == 4 and sys.argv[3] else None
     if catalog not in CATALOGS:
         sys.exit(f"tpch-load: CATALOG must be one of {', '.join(CATALOGS)} (got '{catalog}')")
+    until_date = None
     if until:
         try:
-            datetime.date.fromisoformat(until)
+            until_date = datetime.date.fromisoformat(until)
         except ValueError:
             sys.exit(f"tpch-load: UNTIL must be a date YYYY-MM-DD (got '{until}')")
     src = pathlib.Path("/workspace/landing/tpch") / f"sf{sf}"
@@ -34,7 +35,7 @@ def main():
     spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {catalog}.tpch_raw")
     orders = spark.read.parquet(str(src / "orders.parquet"))
     if until:
-        orders = orders.where(col("o_orderdate") <= lit(until).cast("date"))
+        orders = orders.where(col("o_orderdate") <= lit(until_date))
     for t in TABLES:
         if t == "orders":
             df = orders

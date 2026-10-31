@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks the EL steps (spec 2026-10-30-dbt-elt, sections 6.3 and 6.4) on one catalog:
 # make tpch-gen, make tpch-load (with and without UNTIL), the error messages, and
-# make tpch-clean. Usage: tests/tpch.sh CATALOG (polaris, nessie or rest).
+# make tpch-clean. The test drops the namespaces tpch_raw, tpch_staging and tpch_marts of
+# CATALOG, with any data in them. Usage: tests/tpch.sh CATALOG (polaris, nessie or rest).
 set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/tests/lib/assert.sh"
@@ -28,7 +29,17 @@ parquet_count() {
     "/workspace/$dir/$1.parquet" 2>&1
 }
 # left: the number of objects under the S3 prefix of the catalog in a tpch_ namespace.
-left() { docker compose exec -T spark bash -c "aws s3 ls --recursive s3://\$S3_BUCKET/$catalog/ | grep -c '/tpch_' || true"; }
+left() {
+  local out rc=0
+  out=$(docker compose exec -T spark bash -c "aws s3 ls --recursive s3://\$S3_BUCKET/$catalog/" 2>&1) || rc=$?
+  if (( rc > 1 )); then echo "$out"; echo "left: aws s3 ls failed"; return; fi
+  grep -c '/tpch_' <<<"$out" || true
+}
+# lineitem_count: the lineitem rows of the orders with o_orderdate <= DATE '1996-12-31'.
+lineitem_count() {
+  docker compose exec -T spark python3 -c 'import duckdb, sys; d = sys.argv[1]; print(duckdb.sql(f"SELECT count(*) FROM read_parquet(\x27{d}/lineitem.parquet\x27) WHERE l_orderkey IN (SELECT o_orderkey FROM read_parquet(\x27{d}/orders.parquet\x27) WHERE o_orderdate <= DATE \x271996-12-31\x27)").fetchone()[0])' \
+    "/workspace/$dir" 2>&1
+}
 
 echo "tpch $catalog"
 out=$(make -s elt-require CATALOG=no-such 2>&1 || true)
@@ -52,6 +63,7 @@ assert_eq "$(spark_sql "SELECT concat('d=', max(o_orderdate) <= DATE'1996-12-31'
   "true" "orders stop at UNTIL"
 assert_eq "$(spark_sql "SELECT concat('n=', count(*)) FROM $catalog.tpch_raw.lineitem l LEFT ANTI JOIN $catalog.tpch_raw.orders o ON l.l_orderkey = o.o_orderkey" | sed -n 's/^n=//p')" \
   "0" "lineitem keeps only the rows of the loaded orders"
+assert_eq "$(count lineitem)" "$(lineitem_count)" "lineitem has the rows of the orders up to UNTIL"
 assert_eq "$(count customer)" "$(parquet_count customer)" "customer loaded in full with UNTIL"
 partial=$(count orders)
 
@@ -62,6 +74,8 @@ for t in region nation customer supplier part partsupp orders lineitem; do
 done
 (( partial < $(count orders) )) && pass "the full load has more orders than the UNTIL load" \
   || fail "the full load has more orders than the UNTIL load"
+
+(( $(left) > 0 )) && pass "the S3 probe sees the tpch_raw files" || fail "the S3 probe sees the tpch_raw files"
 
 out=$(make -s tpch-clean CATALOG="$catalog" 2>&1 || echo "tpch-clean failed")
 assert_not_contains "$out" "tpch-clean failed" "make tpch-clean"
