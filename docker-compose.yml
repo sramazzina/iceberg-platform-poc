@@ -202,6 +202,9 @@ services:
       - ./scenarios:/workspace/scenarios
       - ./tests:/workspace/tests:ro
       - ./secrets:/run/lab-secrets:ro
+      # ELT (spec 2026-10-30-dbt-elt): generated TPC-H files and the EL scripts.
+      - ./landing:/workspace/landing
+      - ./elt:/workspace/elt:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8888/api >/dev/null"]
       interval: 5s
@@ -238,6 +241,8 @@ services:
       - "127.0.0.1:10000:10000"
     volumes:
       - ./secrets:/run/lab-secrets:ro
+      # Read-only: a JDBC client can query the Parquet files (SELECT * FROM parquet.`...`).
+      - ./landing:/workspace/landing:ro
     healthcheck:
       # A TCP check: a beeline call starts a JVM. tests/thrift-service.sh runs real SQL.
       test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/10000"]

@@ -1,4 +1,4 @@
-.PHONY: lint test-aws up down reset logs sql-nessie sql-polaris sql-rest nessie-cli smoke-test
+.PHONY: lint test-aws up down reset logs sql-nessie sql-polaris sql-rest nessie-cli smoke-test tpch-gen tpch-load tpch-clean elt-require
 
 lint:
 	tests/lint.sh
@@ -14,7 +14,7 @@ test-aws:
 ALL_PROFILES = COMPOSE_PROFILES='*'
 
 up:
-	mkdir -p secrets secrets/rustfs
+	mkdir -p secrets secrets/rustfs landing
 	@cfg=$$(docker compose config --format json) || exit 1; \
 	dir=$$(printf '%s' "$$cfg" | jq -r '.services.rustfs.volumes[]? | select(.target == "/data") | .source') || exit 1; \
 	if [ -n "$$dir" ]; then mkdir -p "$$dir"; fi
@@ -46,3 +46,18 @@ nessie-cli:
 
 smoke-test:
 	tests/smoke-test.sh
+
+# ELT with dbt (spec 2026-10-30-dbt-elt). CATALOG = polaris, nessie or rest.
+SF ?= 1
+
+elt-require:
+	elt/require.sh "$(CATALOG)"
+
+tpch-gen:
+	docker compose exec -T spark python3 /workspace/elt/tpch_gen.py "$(SF)" "/workspace/landing/tpch/sf$(SF)"
+
+tpch-load: elt-require
+	docker compose exec -T spark spark-submit /workspace/elt/tpch_load.py "$(CATALOG)" "$(SF)" "$(UNTIL)"
+
+tpch-clean: elt-require
+	docker compose exec -T spark spark-submit /workspace/elt/tpch_clean.py "$(CATALOG)"
