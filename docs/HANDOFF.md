@@ -74,6 +74,26 @@ GPLv2+) is accepted under the Artistic License (`VERSIONS.md`).
    deletes it from the RustFS console (`http://localhost:9101`, prefix `polaris/spike_dbt/`).
    Claude may not read the RustFS keys from `.env` (the auto-mode classifier blocked it).
 
+## Move to a Linux server (2026-10-31)
+
+The user may continue on an always-on Linux server with Docker Engine instead of the
+workstation. Branch `feat/dbt-elt` is pushed to `origin` (no CI runs: no workflow). On the
+server:
+
+- Clone the repository at the same path as the plan uses
+  (`/home/sramazzina/work/dev/sramazzina/iceberg-platform-poc`), or replace the path in every
+  plan command.
+- `.env` is not tracked: the user creates it from `.env.example` for the RustFS variant
+  (`COMPOSE_FILE=docker-compose.yml:docker-compose.rustfs.yml`, `S3_BUCKET=iceberg-lab`,
+  `COMPOSE_PROFILES=` empty, local keys). Never print it.
+- The `spark` image is not on the server: the first `make up` builds it (about 4 GB).
+- The RustFS data of the workstation stays there: the server starts with an empty bucket.
+  The spike file of issue #40 is then only on the workstation; the user deletes it there or
+  drops the workstation RustFS data, then ticks the last item of #40.
+- Open point: the RustFS variant is not verified on Linux with Docker Engine. Check the
+  bind-mount ownership (`LAB_UID`) and `rustfs-setup` at the first `make up`.
+- The workstation notes below (WSL2, `cat` alias) may not apply on the server.
+
 ## State of this workstation
 
 - Windows, WSL2, Docker Desktop 29.9.2, 20 CPUs, 32 GB. No AWS credentials, no AWS stack.
