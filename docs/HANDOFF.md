@@ -1,8 +1,8 @@
 # Handoff — Iceberg catalog lab
 
-- Date: 2026-10-30
+- Date: 2026-10-31
 - From: Claude Code session on the user's workstation (Windows, WSL2, Docker Desktop):
-  design and first tasks of the ELT pipeline with dbt
+  ELT pipeline with dbt, Task 32 done
 - To: the next Claude Code session on the **same workstation**
 
 ## Where we are
@@ -16,7 +16,7 @@
 | **ELT with dbt** | **In progress** on branch `feat/dbt-elt` (local only, **not pushed**, no PR) |
 | dbt spec | `docs/superpowers/specs/2026-10-30-dbt-elt-design.md` (section 4.1: spike results and design changes) |
 | dbt plan | `docs/superpowers/plans/2026-10-30-dbt-elt.md` — Tasks 29-36 |
-| GitHub issues | #40 (T29) … #47 (T36). #41, #42 all ticked. #40 all ticked except "Spike objects removed" (see below) |
+| GitHub issues | #40 (T29) … #47 (T36). #41, #42, #43 all ticked. #40 all ticked except "Spike objects removed" (see below) |
 | CI | The repository has no GitHub Actions workflow |
 
 Commits on `feat/dbt-elt` (after `47112d6` of `main`):
@@ -28,6 +28,8 @@ Commits on `feat/dbt-elt` (after `47112d6` of `main`):
 | `3da9d1a` | Spike results applied to spec and plan | — |
 | `8a04cb8`, `44677c6` | T30 Python packages of the `spark` image; license note in `VERSIONS.md` | Spec and quality review approved |
 | `9915a82` | T31 service `spark-thrift` (profile `thrift`) | Spec and quality review approved (minor notes only) |
+| `bfba70c` | T32 TPC-H generation, load and clean (`elt/`, `tests/tpch.sh`) | Spec review approved (identical to the plan) |
+| `875ed37` | T32 quality review fixes: S3 listing errors detected, clean guard on the namespace prefix, typed `UNTIL` date, finite `SF`, stricter test checks | Re-review approved; `tests/tpch.sh` passed on nessie, polaris and rest |
 
 Spike results (`NOTES.md` F7), already applied to the plan text of Tasks 32-35:
 - Thrift Server authentication `NOSASL`. JDBC URL `jdbc:hive2://…:10000/;auth=noSasl`; dbt
@@ -50,10 +52,21 @@ GPLv2+) is accepted under the Artistic License (`VERSIONS.md`).
 
 1. `git checkout feat/dbt-elt`. Start Docker Desktop (WSL integration) and check with
    `docker info`.
-2. Continue the plan with `superpowers:subagent-driven-development` from **Task 32** (issue
-   #43): one implementer subagent per task (`model: "sonnet"`), then a spec review and a
+2. Continue the plan with `superpowers:subagent-driven-development` from **Task 33** (issue
+   #44): one implementer subagent per task (`model: "sonnet"`), then a spec review and a
    code quality review. Tick each issue checklist after the task.
-3. Tasks 32-36 remain. After Task 36: final review, push the branch, open one PR with
+   - **Correction to the plan commands (Tasks 33, 34, 36):** the form
+     `COMPOSE_PROFILES=... make up && tests/<test>.sh` is wrong. The test then runs with the
+     empty `COMPOSE_PROFILES` of `.env`: `tests/tpch.sh` reports "catalog is off", and
+     `tests/dbt-project.sh` skips every catalog and passes without a check. Export the value
+     for the test: `export COMPOSE_PROFILES=nessie,polaris,baseline,thrift; make up;
+     tests/dbt-project.sh`. Restore with `unset COMPOSE_PROFILES; make up`.
+   - `tests/tpch.sh` takes 5-10 minutes per catalog (many JVM starts). Run the catalogs
+     one after the other, never in parallel.
+   - Task 32 changed `elt/tpch_clean.py` after the plan text: the location guard is now the
+     namespace prefix `s3://<bucket>/<catalog>/<namespace>/`, and the table is not dropped
+     when the guard fails. Tasks 33-34 must not give dbt models an explicit `location`.
+3. Tasks 33-36 remain. After Task 36: final review, push the branch, open one PR with
    `Closes #40` … `Closes #47`, give the user the AWS regression commands (Task 36) and ask
    for the DBeaver check.
 4. Before the PR, close the last item of issue #40: one spike file is left on RustFS,
@@ -98,6 +111,12 @@ GPLv2+) is accepted under the Artistic License (`VERSIONS.md`).
    `fct_lineitem` (merge). One branch, one PR for Tasks 29-36.
 8. Verification: Claude verifies on this workstation. The user runs the AWS regression on
    the EC2 VM before the merge.
+9. TPC-H data (2026-10-31): the data loads only on demand, with `make tpch-gen` and
+   `make tpch-load` (script `elt/tpch_load.py`). `make up` loads nothing. Only the tests load
+   a small data set (`SF=0.01`) and drop it at the end. The user confirmed this design.
+10. README (2026-10-31): the user asks for operational instructions in `README.md`. Task 35
+   writes them. Make sure the procedure says that the data loads only on demand, and gives
+   each step as one command.
 
 ## How to execute (from `CLAUDE.md` and `~/.claude/CLAUDE.md`)
 
